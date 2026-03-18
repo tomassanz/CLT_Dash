@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Geist } from "next/font/google"
 import Link from "next/link"
+import Image from "next/image"
 import { Suspense } from "react"
 import "./globals.css"
 
@@ -9,6 +10,13 @@ const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "CLT Fútbol — Historia",
   description: "Dashboard histórico de fútbol del Carrasco Lawn Tennis Club en la Liga Universitaria",
+  icons: {
+    icon: [
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -19,6 +27,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header style={{ backgroundColor: "#6B2D2D" }} className="text-white shadow-md">
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+              <Image
+                src="/icon.jpg"
+                alt="CLT"
+                width={40}
+                height={40}
+                className="rounded-full border-2 hidden sm:block"
+                style={{ borderColor: "#D4A843" }}
+              />
               <div className="flex flex-col leading-tight">
                 <span className="font-bold text-base sm:text-lg tracking-wide" style={{ color: "#D4A843" }}>
                   CARRASCO LAWN TENNIS
@@ -32,6 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <nav className="flex items-center gap-1">
               <NavLink href="/">Historia</NavLink>
               <NavLink href="/actualidad">Actualidad</NavLink>
+              <NavLink href="/jugador">Jugadores</NavLink>
             </nav>
           </div>
 

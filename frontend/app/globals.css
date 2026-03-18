@@ -39,3 +39,30 @@ body {
 ::-webkit-scrollbar-track { background: #F0E8DF; }
 ::-webkit-scrollbar-thumb { background: #6B2D2D55; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #6B2D2D; }
+
+/* Separador bordo/blanco vertical estilo camiseta */
+.clt-stripe-separator {
+  width: 4px;
+  background: repeating-linear-gradient(
+    to bottom,
+    #6B2D2D 0px,
+    #6B2D2D 6px,
+    white 6px,
+    white 12px
+  );
+  border-radius: 2px;
+}
+
+/* Separador horizontal bordo/blanco */
+.clt-stripe-hr {
+  height: 3px;
+  background: repeating-linear-gradient(
+    to right,
+    #6B2D2D 0px,
+    #6B2D2D 8px,
+    transparent 8px,
+    transparent 12px
+  );
+  border-radius: 2px;
+  opacity: 0.3;
+}

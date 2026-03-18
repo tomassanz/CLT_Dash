@@ -1,18 +1,16 @@
 "use client"
 import { useEffect, useState, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import type { Match, SeasonsData, Filters, ScorerStat, AppearanceStat } from "@/lib/types"
+import type { Match, SeasonsData, Filters, AppearanceStat } from "@/lib/types"
 import { loadMatches, loadSeasons, loadMatchDetail, loadPlayersStats, rival } from "@/lib/data"
 import StatsBar from "@/components/StatsBar"
 import FiltersPanel from "@/components/Filters"
 import MatchTable from "@/components/MatchTable"
 import { ScorersTable, AppearancesTable } from "@/components/RankingTable"
+import type { ScorerWithSeasons } from "@/components/RankingTable"
 
 // ── Índice jugador → set de match_ids ────────────────────────────────────────
-// Se construye una sola vez al arrancar, cargando todos los JSONs de detalle.
-// Permite filtrar por jugador en O(1) por partido.
-
-type PlayerIndex = Map<string, Set<string>>  // carne → Set<match_id>
+type PlayerIndex = Map<string, Set<string>>
 
 async function buildPlayerIndex(matchIds: string[]): Promise<PlayerIndex> {
   const idx: PlayerIndex = new Map()
@@ -32,19 +30,21 @@ async function buildPlayerIndex(matchIds: string[]): Promise<PlayerIndex> {
   return idx
 }
 
-// ── Rankings desde match_ids ──────────────────────────────────────────────────
-async function computeRankings(matchIds: string[]) {
-  const scorersMap = new Map<string, { name: string; goals: number }>()
+// ── Rankings desde match_ids (con desglose por temporada) ────────────────────
+async function computeRankings(matches: Match[]) {
+  const scorersMap = new Map<string, { name: string; goals: number; bySeason: Map<number, number> }>()
   const appearMap  = new Map<string, { name: string; starters: number; subs_in: number }>()
 
   await Promise.all(
-    matchIds.map(id =>
-      loadMatchDetail(id).then(detail => {
+    matches.map(m =>
+      loadMatchDetail(m.id).then(detail => {
         for (const g of detail.goals) {
           if (g.own_goal) continue
           const key = g.carne || g.name
-          const prev = scorersMap.get(key) ?? { name: g.name, goals: 0 }
-          scorersMap.set(key, { name: g.name, goals: prev.goals + 1 })
+          const prev = scorersMap.get(key) ?? { name: g.name, goals: 0, bySeason: new Map() }
+          prev.goals += 1
+          prev.bySeason.set(m.year, (prev.bySeason.get(m.year) ?? 0) + 1)
+          scorersMap.set(key, prev)
         }
         for (const s of detail.starters) {
           const key = s.carne || s.name
@@ -60,8 +60,13 @@ async function computeRankings(matchIds: string[]) {
     )
   )
 
-  const scorers: ScorerStat[] = [...scorersMap.entries()]
-    .map(([carne, v]) => ({ carne, name: v.name, goals: v.goals }))
+  const scorers: ScorerWithSeasons[] = [...scorersMap.entries()]
+    .map(([carne, v]) => ({
+      carne,
+      name: v.name,
+      goals: v.goals,
+      bySeason: [...v.bySeason.entries()].map(([year, goals]) => ({ year, goals })),
+    }))
     .sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name))
 
   const appearances: AppearanceStat[] = [...appearMap.entries()]
@@ -109,7 +114,7 @@ export default function HistoriaPage() {
   const [loading,     setLoading]     = useState(true)
 
   const [tab,         setTab]         = useState<"partidos" | "goleadores" | "presencias">("partidos")
-  const [scorers,     setScorers]     = useState<ScorerStat[]>([])
+  const [scorers,     setScorers]     = useState<ScorerWithSeasons[]>([])
   const [appearances, setAppearances] = useState<AppearanceStat[]>([])
   const [rankLoading, setRankLoading] = useState(false)
 
@@ -120,20 +125,17 @@ export default function HistoriaPage() {
     router.replace(qs ? `/?${qs}` : "/", { scroll: false })
   }
 
-  // Carga inicial: matches + seasons + players_stats
   useEffect(() => {
     Promise.all([loadMatches(), loadSeasons(), loadPlayersStats()])
       .then(([m, s, ps]) => {
         setMatches(m)
         setSeasonsData(s)
         setPlayers(ps.appearances)
-        // Construir índice de jugadores en background
         buildPlayerIndex(m.map(x => x.id)).then(setPlayerIdx)
       })
       .finally(() => setLoading(false))
   }, [])
 
-  // Filtrado — primero los filtros rápidos (sin detalle), luego el de jugador
   const filteredByMeta = useMemo(() => {
     return matches.filter(m => {
       if (filters.seasons.length     && !filters.seasons.includes(String(m.year)))         return false
@@ -153,11 +155,10 @@ export default function HistoriaPage() {
     return filteredByMeta.filter(m => matchSet.has(m.id))
   }, [filteredByMeta, filters.player, playerIdx])
 
-  // Rankings
   useEffect(() => {
     if (tab === "partidos") return
     setRankLoading(true)
-    computeRankings(filtered.map(m => m.id))
+    computeRankings(filtered)
       .then(({ scorers, appearances }) => {
         setScorers(scorers)
         setAppearances(appearances)
@@ -179,6 +180,8 @@ export default function HistoriaPage() {
       </div>
 
       <StatsBar matches={filtered} />
+
+      <div className="clt-stripe-hr mb-4" />
 
       {seasonsData && (
         <FiltersPanel

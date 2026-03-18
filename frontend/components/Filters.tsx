@@ -2,20 +2,19 @@
 import { useState, useRef, useEffect } from "react"
 import type { SeasonsData, Filters, AppearanceStat } from "@/lib/types"
 import { toProperCase } from "@/lib/data"
+import { SlidersHorizontal } from "lucide-react"
 
 interface Props {
   data: SeasonsData
   filters: Filters
-  players: AppearanceStat[]   // lista de jugadores para el buscador
+  players: AppearanceStat[]
   onChange: (f: Filters) => void
 }
 
-// ── Toggle genérico en un array ───────────────────────────────────────────────
 function toggle(arr: string[], val: string): string[] {
   return arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]
 }
 
-// ── Chip de selección ─────────────────────────────────────────────────────────
 function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <span
@@ -28,14 +27,8 @@ function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
   )
 }
 
-// ── Dropdown multi-select ─────────────────────────────────────────────────────
 function MultiSelect({
-  label,
-  options,
-  selected,
-  onToggle,
-  disabled,
-  placeholder = "Todos",
+  label, options, selected, onToggle, disabled, placeholder = "Todos",
 }: {
   label: string
   options: { value: string; label: string }[]
@@ -104,13 +97,8 @@ function MultiSelect({
   )
 }
 
-// ── Buscador con autocomplete ─────────────────────────────────────────────────
 function SearchSelect({
-  label,
-  options,
-  selected,
-  onToggle,
-  placeholder = "Buscar...",
+  label, options, selected, onToggle, placeholder = "Buscar...",
 }: {
   label: string
   options: { value: string; label: string }[]
@@ -201,24 +189,22 @@ function SearchSelect({
   )
 }
 
-// ── Panel principal ───────────────────────────────────────────────────────────
 export default function FiltersPanel({ data, filters, players, onChange }: Props) {
+  const [collapsed, setCollapsed] = useState(true)
+
   const set = <K extends keyof Filters>(key: K, val: Filters[K]) => {
     const next = { ...filters, [key]: val }
-    // Cascada: al cambiar temporadas, limpiar torneos y series
     if (key === "seasons")     { next.tournaments = []; next.series = [] }
     if (key === "tournaments") { next.series = [] }
     onChange(next)
   }
 
-  // Torneos disponibles según temporadas seleccionadas
   const relevantSeasons = filters.seasons.length === 0
     ? data.seasons
     : data.seasons.filter(s => filters.seasons.includes(String(s.year)))
 
   const allTournaments = [...new Set(relevantSeasons.flatMap(s => s.tournaments.map(t => t.name)))]
 
-  // Series disponibles según torneos seleccionados
   const relevantTournaments = relevantSeasons.flatMap(s =>
     s.tournaments.filter(t => filters.tournaments.length === 0 || filters.tournaments.includes(t.name))
   )
@@ -234,11 +220,14 @@ export default function FiltersPanel({ data, filters, players, onChange }: Props
     filters.series.length > 0 || filters.rivals.length > 0 ||
     filters.sides.length > 0 || filters.results.length > 0 || filters.player !== ""
 
+  const activeCount = filters.seasons.length + filters.tournaments.length +
+    filters.series.length + filters.rivals.length +
+    filters.sides.length + filters.results.length + (filters.player ? 1 : 0)
+
   const clearAll = () => onChange({
     seasons: [], tournaments: [], series: [], rivals: [], sides: [], results: [], player: ""
   })
 
-  // Chips de resumen de filtros activos
   const chips: { label: string; onRemove: () => void }[] = [
     ...filters.seasons.map(y => ({
       label: y, onRemove: () => set("seasons", filters.seasons.filter(x => x !== y))
@@ -267,73 +256,93 @@ export default function FiltersPanel({ data, filters, players, onChange }: Props
   ]
 
   return (
-    <div className="bg-white rounded-lg border p-4 mb-4 shadow-sm" style={{ borderColor: "#F0E8DF" }}>
-      {/* Dropdowns */}
-      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 items-end">
-        <MultiSelect
-          label="Temporada"
-          options={seasonOpts}
-          selected={filters.seasons}
-          onToggle={v => set("seasons", toggle(filters.seasons, v))}
-        />
-        <MultiSelect
-          label="Torneo"
-          options={tourneyOpts}
-          selected={filters.tournaments}
-          onToggle={v => set("tournaments", toggle(filters.tournaments, v))}
-          disabled={allTournaments.length === 0}
-        />
-        <MultiSelect
-          label="Serie / Divisional"
-          options={seriesOpts}
-          selected={filters.series}
-          onToggle={v => set("series", toggle(filters.series, v))}
-          disabled={allSeries.length === 0}
-        />
-        <SearchSelect
-          label="Rival"
-          options={rivalOpts}
-          selected={filters.rivals}
-          onToggle={v => set("rivals", toggle(filters.rivals, v))}
-          placeholder="Buscar rival..."
-        />
-        <MultiSelect
-          label="Condición"
-          options={[{ value: "home", label: "Local" }, { value: "away", label: "Visitante" }]}
-          selected={filters.sides}
-          onToggle={v => set("sides", toggle(filters.sides, v))}
-        />
-        <MultiSelect
-          label="Resultado"
-          options={[
-            { value: "W", label: "Victoria" },
-            { value: "D", label: "Empate" },
-            { value: "L", label: "Derrota" },
-          ]}
-          selected={filters.results}
-          onToggle={v => set("results", toggle(filters.results, v))}
-        />
-        <SearchSelect
-          label="Jugador"
-          options={playerOpts}
-          selected={filters.player ? [filters.player] : []}
-          onToggle={v => set("player", filters.player === v ? "" : v)}
-          placeholder="Buscar jugador..."
-        />
+    <div className="bg-white rounded-lg border p-3 sm:p-4 mb-4 shadow-sm" style={{ borderColor: "#F0E8DF" }}>
+      {/* Mobile toggle */}
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className="sm:hidden flex items-center justify-between w-full text-sm font-semibold"
+        style={{ color: "#6B2D2D" }}
+      >
+        <span className="flex items-center gap-2">
+          <SlidersHorizontal size={16} />
+          Filtros
+          {activeCount > 0 && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: "#6B2D2D" }}>
+              {activeCount}
+            </span>
+          )}
+        </span>
+        <span className="text-gray-400">{collapsed ? "▼" : "▲"}</span>
+      </button>
 
-        {hasFilters && (
-          <div className="flex flex-col justify-end col-span-2 sm:col-span-1">
-            <button
-              onClick={clearAll}
-              className="text-xs px-3 py-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-            >
-              Limpiar filtros
-            </button>
-          </div>
-        )}
+      {/* Dropdowns — always visible on sm+, collapsible on mobile */}
+      <div className={`${collapsed ? "hidden" : "mt-3"} sm:block`}>
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 items-end">
+          <MultiSelect
+            label="Temporada"
+            options={seasonOpts}
+            selected={filters.seasons}
+            onToggle={v => set("seasons", toggle(filters.seasons, v))}
+          />
+          <MultiSelect
+            label="Torneo"
+            options={tourneyOpts}
+            selected={filters.tournaments}
+            onToggle={v => set("tournaments", toggle(filters.tournaments, v))}
+            disabled={allTournaments.length === 0}
+          />
+          <MultiSelect
+            label="Serie / Divisional"
+            options={seriesOpts}
+            selected={filters.series}
+            onToggle={v => set("series", toggle(filters.series, v))}
+            disabled={allSeries.length === 0}
+          />
+          <SearchSelect
+            label="Rival"
+            options={rivalOpts}
+            selected={filters.rivals}
+            onToggle={v => set("rivals", toggle(filters.rivals, v))}
+            placeholder="Buscar rival..."
+          />
+          <MultiSelect
+            label="Condición"
+            options={[{ value: "home", label: "Local" }, { value: "away", label: "Visitante" }]}
+            selected={filters.sides}
+            onToggle={v => set("sides", toggle(filters.sides, v))}
+          />
+          <MultiSelect
+            label="Resultado"
+            options={[
+              { value: "W", label: "Victoria" },
+              { value: "D", label: "Empate" },
+              { value: "L", label: "Derrota" },
+            ]}
+            selected={filters.results}
+            onToggle={v => set("results", toggle(filters.results, v))}
+          />
+          <SearchSelect
+            label="Jugador"
+            options={playerOpts}
+            selected={filters.player ? [filters.player] : []}
+            onToggle={v => set("player", filters.player === v ? "" : v)}
+            placeholder="Buscar jugador..."
+          />
+
+          {hasFilters && (
+            <div className="flex flex-col justify-end col-span-2 sm:col-span-1">
+              <button
+                onClick={clearAll}
+                className="text-xs px-3 py-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+              >
+                Limpiar filtros
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Chips de filtros activos */}
+      {/* Chips — always visible (even when collapsed) */}
       {chips.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t" style={{ borderColor: "#F0E8DF" }}>
           {chips.map((c, i) => (

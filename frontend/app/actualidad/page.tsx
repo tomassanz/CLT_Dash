@@ -1,12 +1,14 @@
 "use client"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import type { Match, LastUpdated } from "@/lib/types"
-import { loadMatches, loadLastUpdated, rival, formatDate, toProperCase } from "@/lib/data"
+import type { Match, MatchDetail, LastUpdated } from "@/lib/types"
+import { loadMatches, loadLastUpdated, loadMatchDetail, rival, formatDate, toProperCase } from "@/lib/data"
 import ResultBadge from "@/components/ResultBadge"
+import { Home, Plane, MapPin, Calendar } from "lucide-react"
 
 export default function ActualidadPage() {
   const [matches, setMatches] = useState<Match[]>([])
+  const [details, setDetails] = useState<Map<string, MatchDetail>>(new Map())
   const [lastUpdated, setLastUpdated] = useState<LastUpdated | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -15,6 +17,34 @@ export default function ActualidadPage() {
       .then(([m, lu]) => {
         setMatches(m)
         setLastUpdated(lu)
+
+        // Load details for the latest season matches to get scorers
+        const latestSeason = lu?.latest_season
+        const seasonMatches = m.filter(match => match.season === latestSeason)
+        const played = seasonMatches.filter(match => match.result !== null)
+
+        // Load details for played matches (last ~20)
+        const recentPlayed = played
+          .sort((a, b) => {
+            if (!a.datetime) return 1
+            if (!b.datetime) return -1
+            return new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
+          })
+          .slice(0, 20)
+
+        Promise.all(
+          recentPlayed.map(match =>
+            loadMatchDetail(match.id)
+              .then(d => [match.id, d] as const)
+              .catch(() => null)
+          )
+        ).then(results => {
+          const map = new Map<string, MatchDetail>()
+          for (const r of results) {
+            if (r) map.set(r[0], r[1])
+          }
+          setDetails(map)
+        })
       })
       .finally(() => setLoading(false))
   }, [])
@@ -23,7 +53,6 @@ export default function ActualidadPage() {
     return <div className="text-center py-20 text-gray-400">Cargando...</div>
   }
 
-  // Filtrar última temporada con datos
   const latestSeason = lastUpdated?.latest_season
   const seasonMatches = matches
     .filter(m => m.season === latestSeason)
@@ -33,11 +62,10 @@ export default function ActualidadPage() {
       return new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
     })
 
-  // Última fecha jugada (con resultado)
   const played = seasonMatches.filter(m => m.result !== null)
   const upcoming = seasonMatches.filter(m => m.result === null)
 
-  // Agrupar jugados por fecha (round)
+  // Group played by round
   const roundMap = new Map<string, Match[]>()
   for (const m of played) {
     const key = `${m.tournament}__${m.series}__${m.round}`
@@ -45,8 +73,7 @@ export default function ActualidadPage() {
     roundMap.get(key)!.push(m)
   }
 
-  // Tomar los últimos 2 grupos de fechas distintas (por datetime desc)
-  const latestRoundKeys = [...roundMap.keys()].slice(0, 4)
+  const latestRoundKeys = [...roundMap.keys()].slice(0, 6)
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -65,8 +92,8 @@ export default function ActualidadPage() {
       {/* Últimos resultados */}
       {latestRoundKeys.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-sm font-bold uppercase tracking-wide mb-3" style={{ color: "#6B2D2D" }}>
-            Últimos resultados
+          <h2 className="text-sm font-bold uppercase tracking-wide mb-3 flex items-center gap-2" style={{ color: "#6B2D2D" }}>
+            <Calendar size={14} /> Últimos resultados
           </h2>
           <div className="space-y-3">
             {latestRoundKeys.map(key => {
@@ -75,28 +102,79 @@ export default function ActualidadPage() {
               return (
                 <div key={key} className="bg-white rounded-xl border shadow-sm overflow-hidden"
                   style={{ borderColor: "#F0E8DF" }}>
-                  {/* Header de la fecha */}
-                  <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide"
+                  {/* Header */}
+                  <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide flex items-center justify-between"
                     style={{ backgroundColor: "#6B2D2D", color: "white" }}>
-                    {first.tournament} · {first.series} · Fecha {first.round}
+                    <span>{first.tournament} · {first.series}</span>
+                    <span className="opacity-70">Fecha {first.round}</span>
                   </div>
-                  {/* Partidos */}
-                  {ms.map(m => (
-                    <Link key={m.id} href={`/partido/${m.id}`}
-                      className="flex items-center gap-3 px-4 py-3 border-t hover:bg-[#FAF6F1] transition-colors"
-                      style={{ borderColor: "#F0E8DF" }}>
-                      <ResultBadge result={m.result} />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">
-                          {m.home} <span className="text-gray-400 mx-1">
-                            {m.score_home}-{m.score_away}
-                          </span> {m.away}
+
+                  {/* Partidos en formato fixture */}
+                  {ms.map(m => {
+                    const detail = details.get(m.id)
+                    const matchGoals = detail?.goals.filter(g => !g.own_goal) ?? []
+                    const isHome = m.clt_side === "home"
+
+                    return (
+                      <Link key={m.id} href={`/partido/${m.id}`}
+                        className="block border-t hover:bg-[#FAF6F1] transition-colors"
+                        style={{ borderColor: "#F0E8DF" }}>
+                        <div className="px-4 py-3">
+                          {/* Fixture row */}
+                          <div className="flex items-center gap-2">
+                            <ResultBadge result={m.result} size="sm" />
+
+                            <div className="flex-1 min-w-0">
+                              {/* Score line: CLT 2 - 1 Rival */}
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className={`font-bold ${isHome ? "" : "text-gray-600"}`} style={isHome ? { color: "#6B2D2D" } : {}}>
+                                  {isHome ? "CLT" : toProperCase(m.home)}
+                                </span>
+                                <span className="font-mono font-bold text-base" style={{ color: "#3A1A1A" }}>
+                                  {m.score_home}
+                                </span>
+                                <span className="text-gray-300">-</span>
+                                <span className="font-mono font-bold text-base" style={{ color: "#3A1A1A" }}>
+                                  {m.score_away}
+                                </span>
+                                <span className={`font-bold ${!isHome ? "" : "text-gray-600"}`} style={!isHome ? { color: "#6B2D2D" } : {}}>
+                                  {isHome ? toProperCase(m.away) : "CLT"}
+                                </span>
+                              </div>
+
+                              {/* Goleadores inline */}
+                              {matchGoals.length > 0 && (
+                                <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap items-center gap-x-1.5">
+                                  <span>⚽</span>
+                                  {matchGoals.map((g, i) => (
+                                    <span key={i}>
+                                      {toProperCase(g.name)} {g.minute}&apos;
+                                      {i < matchGoals.length - 1 && <span className="text-gray-300">,</span>}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Meta: fecha, cancha, condición */}
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[10px] text-gray-400">
+                                <span>{formatDate(m.datetime)}</span>
+                                {m.venue && (
+                                  <span className="flex items-center gap-0.5">
+                                    <MapPin size={8} /> {m.venue}
+                                  </span>
+                                )}
+                                <span className="flex items-center gap-0.5">
+                                  {m.clt_side === "home" ? <><Home size={8} /> Local</> : <><Plane size={8} /> Visita</>}
+                                </span>
+                              </div>
+                            </div>
+
+                            <span className="text-xs shrink-0" style={{ color: "#6B2D2D" }}>Ver →</span>
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-400">{formatDate(m.datetime)}</div>
-                      </div>
-                      <span className="text-xs" style={{ color: "#6B2D2D" }}>Ver →</span>
-                    </Link>
-                  ))}
+                      </Link>
+                    )
+                  })}
                 </div>
               )
             })}
@@ -107,18 +185,40 @@ export default function ActualidadPage() {
       {/* Próximos partidos */}
       {upcoming.length > 0 && (
         <div>
-          <h2 className="text-sm font-bold uppercase tracking-wide mb-3" style={{ color: "#6B2D2D" }}>
-            Próximos partidos
+          <h2 className="text-sm font-bold uppercase tracking-wide mb-3 flex items-center gap-2" style={{ color: "#6B2D2D" }}>
+            <Calendar size={14} /> Próximos partidos
           </h2>
           <div className="space-y-2">
             {upcoming.slice(0, 10).map(m => (
               <div key={m.id} className="bg-white rounded-xl border p-4 shadow-sm"
                 style={{ borderColor: "#F0E8DF" }}>
-                <div className="text-xs text-gray-400 mb-1">{m.tournament} · {m.series} · Fecha {m.round}</div>
-                <div className="font-medium text-sm">{m.home} vs {m.away}</div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {formatDate(m.datetime)}
-                  {m.venue && ` · ${m.venue}`}
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#6B2D2D" }}>
+                    {m.tournament} · {m.series}
+                  </span>
+                  <span className="text-[10px] text-gray-400">Fecha {m.round}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className={`font-bold ${m.clt_side === "home" ? "" : "text-gray-600"}`}
+                    style={m.clt_side === "home" ? { color: "#6B2D2D" } : {}}>
+                    {m.clt_side === "home" ? "CLT" : toProperCase(m.home)}
+                  </span>
+                  <span className="text-gray-400">vs</span>
+                  <span className={`font-bold ${m.clt_side === "away" ? "" : "text-gray-600"}`}
+                    style={m.clt_side === "away" ? { color: "#6B2D2D" } : {}}>
+                    {m.clt_side === "away" ? "CLT" : toProperCase(m.away)}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-2 mt-1 text-[10px] text-gray-400">
+                  <span>{formatDate(m.datetime)}</span>
+                  {m.venue && (
+                    <span className="flex items-center gap-0.5">
+                      <MapPin size={8} /> {m.venue}
+                    </span>
+                  )}
+                  <span className="flex items-center gap-0.5">
+                    {m.clt_side === "home" ? <><Home size={8} /> Local</> : <><Plane size={8} /> Visita</>}
+                  </span>
                 </div>
               </div>
             ))}
