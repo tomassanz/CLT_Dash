@@ -1,0 +1,68 @@
+import type { Metadata } from "next"
+import { Geist } from "next/font/google"
+import Link from "next/link"
+import { Suspense } from "react"
+import "./globals.css"
+
+const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
+
+export const metadata: Metadata = {
+  title: "CLT Fútbol — Historia",
+  description: "Dashboard histórico de fútbol del Carrasco Lawn Tennis Club en la Liga Universitaria",
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="es">
+      <body className={`${geist.variable} antialiased`}>
+        {/* ── Header ── */}
+        <header style={{ backgroundColor: "#6B2D2D" }} className="text-white shadow-md">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+              <div className="flex flex-col leading-tight">
+                <span className="font-bold text-base sm:text-lg tracking-wide" style={{ color: "#D4A843" }}>
+                  CARRASCO LAWN TENNIS
+                </span>
+                <span className="text-[10px] sm:text-xs tracking-widest text-white/70 uppercase">
+                  Fútbol · Liga Universitaria
+                </span>
+              </div>
+            </Link>
+
+            <nav className="flex items-center gap-1">
+              <NavLink href="/">Historia</NavLink>
+              <NavLink href="/actualidad">Actualidad</NavLink>
+            </nav>
+          </div>
+
+          {/* Línea dorada decorativa */}
+          <div className="h-0.5 w-full" style={{ backgroundColor: "#D4A843" }} />
+        </header>
+
+        {/* ── Content ── */}
+        <main className="max-w-7xl mx-auto px-4 py-6">
+          <Suspense fallback={<div className="flex items-center justify-center h-40 text-gray-400">Cargando...</div>}>
+            {children}
+          </Suspense>
+        </main>
+
+        {/* ── Footer ── */}
+        <footer className="mt-12 border-t py-4 text-center text-xs opacity-40"
+          style={{ borderColor: "#D4A843" }}>
+          Carrasco Lawn Tennis · Datos: Liga Universitaria de Deportes
+        </footer>
+      </body>
+    </html>
+  )
+}
+
+function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="px-3 py-1.5 rounded text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+    >
+      {children}
+    </Link>
+  )
+}

@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* ── Paleta CLT ─────────────────────────────────────────────────────────────
+   Bordo/marrón oscuro: #6B2D2D  (primario)
+   Blanco:              #FFFFFF  (secundario)
+   Dorado:              #D4A843  (acento)
+   Marrón muy oscuro:   #3A1A1A  (texto)
+   Crema:               #FAF6F1  (fondo)
+──────────────────────────────────────────────────────────────────────────── */
+
+@theme inline {
+  --color-clt-bordo:    #6B2D2D;
+  --color-clt-bordo-dark: #4E1F1F;
+  --color-clt-gold:     #D4A843;
+  --color-clt-dark:     #3A1A1A;
+  --color-clt-cream:    #FAF6F1;
+  --color-clt-cream-dark: #F0E8DF;
+
+  --color-win:          #16a34a;
+  --color-draw:         #ca8a04;
+  --color-loss:         #dc2626;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #FAF6F1;
+  color: #3A1A1A;
+  font-family: var(--font-geist-sans, system-ui, sans-serif);
+}
+
+/* Scrollbar sutil */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #F0E8DF; }
+::-webkit-scrollbar-thumb { background: #6B2D2D55; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #6B2D2D; }
