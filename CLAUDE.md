@@ -12,6 +12,11 @@ Dashboard web público que muestra toda la historia de partidos de fútbol del *
 
 ## Estado actual del proyecto (al 17/03/2026)
 
+### URLs de producción
+- **Sitio live:** https://clt-futbol-historia.vercel.app
+- **GitHub repo:** https://github.com/tomassanz/CLT_Dash (privado)
+- **Vercel project:** tomas-projects-4252e6bd/frontend
+
 ### ✅ Completado
 
 | Componente | Estado | Notas |
@@ -19,19 +24,17 @@ Dashboard web público que muestra toda la historia de partidos de fútbol del *
 | `scraper/test_api.py` | ✅ Listo | Script de reconocimiento/diagnóstico de la API |
 | `scraper/extractor.py` | ✅ Listo | Extractor unificado, probado |
 | `scraper/json_generator.py` | ✅ Listo | Generador de JSONs estáticos |
-| `scraper/clt.db` | ✅ Generado | Solo temporada 112 (ver pendientes) |
-| `frontend/` | ✅ Listo | Next.js 16 corriendo en localhost:3000 |
-| JSONs en `frontend/public/data/` | ✅ Generados | Solo temporada 112 |
+| `frontend/` | ✅ En producción | Next.js 16 en https://clt-futbol-historia.vercel.app |
+| JSONs en `frontend/public/data/` | ✅ Generados | Temporadas 111–112 publicados |
+| **Deploy Vercel** | ✅ Live | Auto-redeploy en cada push a main |
+| **GitHub repo** | ✅ Privado | https://github.com/tomassanz/CLT_Dash |
 
-### ⏳ Pendiente
+### ⏳ Pendiente / En curso
 
 | Tarea | Prioridad | Detalle |
 |---|---|---|
-| **Extracción histórica completa** | 🔴 Alta | Correr `--full` para temporadas 90–112. Tarda varias horas, se hace una sola vez desde la Mac. |
-| **Validar y ajustar el dashboard** | 🟡 Media | El usuario debe revisar el frontend en localhost:3000 y dar feedback antes de continuar. |
-| **GitHub Actions workflow** | 🟡 Media | Automatización semanal (`.github/workflows/update.yml`). El directorio `.github/workflows/` existe pero está vacío. |
-| **Deploy en Vercel** | 🟡 Media | Conectar el repo a Vercel una sola vez (interfaz web). |
-| **Extracción histórica completa corrida** | 🔴 Alta | Ver instrucciones abajo. |
+| **Extracción histórica 90–110** | 🔴 En curso | `run_full_and_deploy.sh` corriendo en background desde 17/03/2026 23:38. Tarda 4-8hs. Al terminar hace commit+push automático y Vercel redespliega. Log: `/tmp/clt_full_deploy.log` |
+| **GitHub Actions (cron semanal)** | 🟡 Próxima instancia | Automatización semanal `.github/workflows/update.yml`. Pendiente. |
 
 ---
 
