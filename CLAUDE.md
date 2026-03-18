@@ -10,7 +10,7 @@ Dashboard web público que muestra toda la historia de partidos de fútbol del *
 
 ---
 
-## Estado actual del proyecto (al 17/03/2026)
+## Estado actual del proyecto (al 18/03/2026)
 
 ### URLs de producción
 - **Sitio live:** https://clt-futbol-historia.vercel.app
@@ -25,16 +25,18 @@ Dashboard web público que muestra toda la historia de partidos de fútbol del *
 | `scraper/extractor.py` | ✅ Listo | Extractor unificado, probado |
 | `scraper/json_generator.py` | ✅ Listo | Generador de JSONs estáticos |
 | `frontend/` | ✅ En producción | Next.js 16 en https://clt-futbol-historia.vercel.app |
-| JSONs en `frontend/public/data/` | ✅ Generados | Temporadas 111–112 publicados |
-| **Deploy Vercel** | ✅ Live | Auto-redeploy en cada push a main |
+| **Datos históricos** | ✅ Completos | 1688 partidos, temporadas 2003–2025 (90–112) |
+| **Deploy Vercel** | ✅ Live | Conectado a GitHub — auto-redeploy en cada push a main |
 | **GitHub repo** | ✅ Privado | https://github.com/tomassanz/CLT_Dash |
 
-### ⏳ Pendiente / En curso
+### ⏳ Pendiente
 
 | Tarea | Prioridad | Detalle |
 |---|---|---|
-| **Extracción histórica 90–110** | 🔴 En curso | `run_full_and_deploy.sh` corriendo en background desde 17/03/2026 23:38. Tarda 4-8hs. Al terminar hace commit+push automático y Vercel redespliega. Log: `/tmp/clt_full_deploy.log` |
-| **GitHub Actions (cron semanal)** | 🟡 Próxima instancia | Automatización semanal `.github/workflows/update.yml`. Pendiente. |
+| **GitHub Actions (cron semanal)** | 🟡 Próxima instancia | Automatización semanal `.github/workflows/update.yml`. Corre `--incremental` cada domingo y hace push automático. |
+
+### Cómo deployar cambios
+Vercel está conectado a GitHub. Cualquier `git push origin main` redespliega el sitio automáticamente en ~1 minuto.
 
 ---
 
