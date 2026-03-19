@@ -100,7 +100,11 @@ export default function PartidoPage() {
                       {p.shirt}
                     </span>
                     <span className="flex-1 text-sm font-medium">{toProperCase(p.name)}</span>
-                    {p.captain && <span title="Capitán" className="text-sm" style={{ color: "#D4A843" }}>★</span>}
+                    {p.captain && (
+                      <span title="Capitán"
+                        className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold border"
+                        style={{ color: "#D4A843", borderColor: "#D4A843" }}>C</span>
+                    )}
                   </div>
                 ))}
               </div>}

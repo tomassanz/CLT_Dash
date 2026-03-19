@@ -1,9 +1,10 @@
 "use client"
 import { useEffect, useState, useMemo } from "react"
-import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import type { Match, MatchDetail, AppearanceStat } from "@/lib/types"
 import { loadMatches, loadMatchDetail, loadPlayersStats, rival, formatDate, toProperCase } from "@/lib/data"
 import ResultBadge from "@/components/ResultBadge"
+import MatchModal from "@/components/MatchModal"
 import { Search, Home, Plane } from "lucide-react"
 
 interface PlayerProfile {
@@ -18,14 +19,23 @@ interface PlayerProfile {
   goalsBySeason: Map<number, number>
 }
 
+type MatchFilter = "titular" | "suplente" | "goles" | "amarilla" | "roja" | "V" | "E" | "D"
+
 export default function JugadorPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
   const [allMatches, setAllMatches] = useState<Match[]>([])
   const [players, setPlayers] = useState<AppearanceStat[]>([])
   const [query, setQuery] = useState("")
-  const [selectedCarne, setSelectedCarne] = useState<string | null>(null)
   const [profile, setProfile] = useState<PlayerProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
+  const [activeFilters, setActiveFilters] = useState<Set<MatchFilter>>(new Set())
+  const [modal, setModal] = useState<{ match: Match; detail: MatchDetail; allMatches: Match[] } | null>(null)
+
+  // carne comes from the URL
+  const selectedCarne = searchParams.get("carne")
 
   useEffect(() => {
     Promise.all([loadMatches(), loadPlayersStats()])
@@ -36,23 +46,30 @@ export default function JugadorPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // When players load and there's a carne in the URL, pre-fill the search box
+  useEffect(() => {
+    if (!selectedCarne || players.length === 0) return
+    const player = players.find(p => p.carne === selectedCarne)
+    if (player) setQuery(toProperCase(player.name))
+  }, [selectedCarne, players])
+
   const filtered = useMemo(() => {
-    if (query.length < 2) return []
+    if (query.length < 2 || selectedCarne) return []
     const q = query.toLowerCase()
     return players
       .filter(p => p.name.toLowerCase().includes(q))
       .slice(0, 20)
-  }, [players, query])
+  }, [players, query, selectedCarne])
 
-  // Load player profile
+  // Load player profile when carne changes
   useEffect(() => {
-    if (!selectedCarne || allMatches.length === 0) return
+    if (!selectedCarne || allMatches.length === 0 || players.length === 0) return
     setProfileLoading(true)
+    setProfile(null)
 
     const player = players.find(p => p.carne === selectedCarne)
     if (!player) { setProfileLoading(false); return }
 
-    // Load all match details to find this player
     Promise.all(
       allMatches.map(m =>
         loadMatchDetail(m.id).then(detail => ({ match: m, detail })).catch(() => null)
@@ -60,7 +77,6 @@ export default function JugadorPage() {
     ).then(results => {
       const playerMatches: PlayerProfile["matches"] = []
       const goalsBySeason = new Map<number, number>()
-
       let totalGoals = 0, totalYellows = 0, totalReds = 0, totalStarts = 0, totalSubs = 0
 
       for (const r of results) {
@@ -99,16 +115,24 @@ export default function JugadorPage() {
         carne: selectedCarne,
         name: player.name,
         matches: playerMatches,
-        totalGoals,
-        totalYellows,
-        totalReds,
-        totalStarts,
-        totalSubs,
-        goalsBySeason,
+        totalGoals, totalYellows, totalReds, totalStarts, totalSubs, goalsBySeason,
       })
       setProfileLoading(false)
     })
   }, [selectedCarne, allMatches, players])
+
+  function selectPlayer(carne: string, name: string) {
+    setQuery(toProperCase(name))
+    setActiveFilters(new Set())
+    router.replace(`/jugador?carne=${encodeURIComponent(carne)}`, { scroll: false })
+  }
+
+  function clearPlayer() {
+    setQuery("")
+    setProfile(null)
+    setActiveFilters(new Set())
+    router.replace("/jugador", { scroll: false })
+  }
 
   if (loading) {
     return <div className="text-center py-20 text-gray-400">Cargando...</div>
@@ -128,19 +152,25 @@ export default function JugadorPage() {
           <input
             type="text"
             value={query}
-            onChange={e => { setQuery(e.target.value); setSelectedCarne(null); setProfile(null) }}
+            onChange={e => {
+              setQuery(e.target.value)
+              if (selectedCarne) clearPlayer()
+            }}
             placeholder="Escribí el nombre del jugador..."
             className="w-full text-sm focus:outline-none bg-transparent"
           />
+          {selectedCarne && (
+            <button onClick={clearPlayer} className="text-gray-400 hover:text-gray-600 shrink-0 text-lg leading-none">&times;</button>
+          )}
         </div>
 
         {/* Autocomplete dropdown */}
-        {filtered.length > 0 && !selectedCarne && (
+        {filtered.length > 0 && (
           <div className="absolute z-50 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto" style={{ borderColor: "#D4A843" }}>
             {filtered.map(p => (
               <button
                 key={p.carne}
-                onClick={() => { setSelectedCarne(p.carne); setQuery(toProperCase(p.name)) }}
+                onClick={() => selectPlayer(p.carne, p.name)}
                 className="w-full text-left px-4 py-2.5 text-sm hover:bg-[#FAF6F1] transition-colors flex items-center justify-between border-b last:border-b-0"
                 style={{ borderColor: "#F0E8DF" }}
               >
@@ -206,40 +236,106 @@ export default function JugadorPage() {
           <div className="bg-white rounded-xl border shadow-sm overflow-hidden" style={{ borderColor: "#F0E8DF" }}>
             <div className="px-4 py-2 border-b" style={{ borderColor: "#F0E8DF", backgroundColor: "#FDFAF7" }}>
               <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: "#6B2D2D" }}>
-                Historial de partidos ({profile.matches.length})
+                Historial de partidos
               </h3>
             </div>
-            <div className="divide-y" style={{ borderColor: "#F0E8DF" }}>
-              {profile.matches.map(({ match: m, started, goals, yellows, reds }) => (
-                <Link
-                  key={m.id}
-                  href={`/partido/${m.id}`}
-                  className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 hover:bg-[#FAF6F1] transition-colors"
+
+            {/* Filter chips */}
+            <div className="px-4 py-2.5 flex flex-wrap gap-1.5 border-b" style={{ borderColor: "#F0E8DF" }}>
+              {(
+                [
+                  { key: "titular",  label: "Titular" },
+                  { key: "suplente", label: "Suplente" },
+                  { key: "goles",    label: "⚽ Con goles" },
+                  { key: "amarilla", label: "🟨 Amarilla" },
+                  { key: "roja",     label: "🟥 Roja" },
+                  { key: "V",        label: "Victoria" },
+                  { key: "E",        label: "Empate" },
+                  { key: "D",        label: "Derrota" },
+                ] as { key: MatchFilter; label: string }[]
+              ).map(({ key, label }) => {
+                const on = activeFilters.has(key)
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveFilters(prev => {
+                      const next = new Set(prev)
+                      on ? next.delete(key) : next.add(key)
+                      return next
+                    })}
+                    className="text-[11px] px-2.5 py-1 rounded-full border font-medium transition-colors"
+                    style={on
+                      ? { backgroundColor: "#6B2D2D", color: "white", borderColor: "#6B2D2D" }
+                      : { backgroundColor: "white", color: "#6B2D2D", borderColor: "#D4A843" }}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+              {activeFilters.size > 0 && (
+                <button
+                  onClick={() => setActiveFilters(new Set())}
+                  className="text-[11px] px-2.5 py-1 rounded-full border font-medium transition-colors"
+                  style={{ backgroundColor: "white", color: "#dc2626", borderColor: "#dc2626" }}
                 >
-                  <ResultBadge result={m.result} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 text-sm">
-                      <span className="font-medium truncate">vs {rival(m)}</span>
-                      <span className="text-gray-300 shrink-0">·</span>
-                      <span className="font-mono text-xs shrink-0">{m.gf}-{m.ga}</span>
-                    </div>
-                    <div className="text-[10px] text-gray-400 flex items-center gap-1">
-                      {m.clt_side === "home" ? <Home size={8} /> : <Plane size={8} />}
-                      <span>{formatDate(m.datetime)}</span>
-                      <span>· {m.tournament}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {started
-                      ? <span className="text-[9px] px-1 py-0.5 rounded font-medium" style={{ backgroundColor: "#6B2D2D", color: "white" }}>TIT</span>
-                      : <span className="text-[9px] px-1 py-0.5 rounded font-medium bg-gray-200 text-gray-600">SUP</span>}
-                    {goals > 0 && <span className="text-xs">⚽{goals > 1 ? `×${goals}` : ""}</span>}
-                    {yellows > 0 && <span className="w-2.5 h-3 rounded-sm inline-block" style={{ backgroundColor: "#facc15" }} />}
-                    {reds > 0 && <span className="w-2.5 h-3 rounded-sm inline-block" style={{ backgroundColor: "#dc2626" }} />}
-                  </div>
-                </Link>
-              ))}
+                  Limpiar
+                </button>
+              )}
             </div>
+
+            {(() => {
+              const visibleMatches = profile.matches.filter(({ match: m, started, goals, yellows, reds }) => {
+                if (activeFilters.size === 0) return true
+                if (activeFilters.has("titular")  && !started)      return false
+                if (activeFilters.has("suplente") && started)       return false
+                if (activeFilters.has("goles")    && goals === 0)   return false
+                if (activeFilters.has("amarilla") && yellows === 0) return false
+                if (activeFilters.has("roja")     && reds === 0)    return false
+                if (activeFilters.has("V") && m.result !== "W")     return false
+                if (activeFilters.has("E") && m.result !== "D")     return false
+                if (activeFilters.has("D") && m.result !== "L")     return false
+                return true
+              })
+              return (
+                <>
+                  <div className="px-4 py-1.5 text-[11px] text-gray-400">
+                    {visibleMatches.length} partido{visibleMatches.length !== 1 ? "s" : ""}
+                    {activeFilters.size > 0 ? " (filtrado)" : ""}
+                  </div>
+                  <div className="divide-y" style={{ borderColor: "#F0E8DF" }}>
+                    {visibleMatches.map(({ match: m, started, goals, yellows, reds }) => (
+                      <button
+                        key={m.id}
+                        onClick={() => loadMatchDetail(m.id).then(detail => setModal({ match: m, detail, allMatches: visibleMatches.map(x => x.match) }))}
+                        className="w-full text-left flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 hover:bg-[#FAF6F1] transition-colors"
+                      >
+                        <ResultBadge result={m.result} size="sm" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 text-sm">
+                            <span className="font-medium truncate">vs {rival(m)}</span>
+                            <span className="text-gray-300 shrink-0">·</span>
+                            <span className="font-mono text-xs shrink-0">{m.gf}-{m.ga}</span>
+                          </div>
+                          <div className="text-[10px] text-gray-400 flex items-center gap-1">
+                            {m.clt_side === "home" ? <Home size={8} /> : <Plane size={8} />}
+                            <span>{formatDate(m.datetime)}</span>
+                            <span>· {m.tournament}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {started
+                            ? <span className="text-[9px] px-1 py-0.5 rounded font-medium" style={{ backgroundColor: "#6B2D2D", color: "white" }}>TIT</span>
+                            : <span className="text-[9px] px-1 py-0.5 rounded font-medium bg-gray-200 text-gray-600">SUP</span>}
+                          {goals > 0 && <span className="text-xs">⚽{goals > 1 ? `×${goals}` : ""}</span>}
+                          {yellows > 0 && <span className="w-2.5 h-3 rounded-sm inline-block" style={{ backgroundColor: "#facc15" }} />}
+                          {reds > 0 && <span className="w-2.5 h-3 rounded-sm inline-block" style={{ backgroundColor: "#dc2626" }} />}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )
+            })()}
           </div>
         </div>
       )}
@@ -248,6 +344,15 @@ export default function JugadorPage() {
         <div className="text-center py-12 text-gray-400 text-sm">
           Escribí al menos 2 letras para buscar un jugador.
         </div>
+      )}
+
+      {modal && (
+        <MatchModal
+          match={modal.match}
+          detail={modal.detail}
+          allMatches={modal.allMatches}
+          onClose={() => setModal(null)}
+        />
       )}
     </div>
   )

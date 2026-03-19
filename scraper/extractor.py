@@ -21,8 +21,12 @@ import requests
 # Configuración
 # ──────────────────────────────────────────────────────────────────────────────
 
-BASE_URL  = "https://ligauniversitaria.org.uy/detallefechas/api.php"
+BASE_URL        = "https://ligauniversitaria.org.uy/detallefechas/api.php"
+BASE_URL_POS    = "https://ligauniversitaria.org.uy/posiciones/api.php"
+BASE_URL_GOL    = "https://ligauniversitaria.org.uy/goleadores/api.php"
+BASE_URL_VALLA  = "https://ligauniversitaria.org.uy/valla_menos_vencida/api.php"
 SPORT     = "FÚTBOL"
+SPORT_API = "F"   # las APIs nuevas usan "F" en vez de "FÚTBOL"
 TEAM      = "CARRASCO LAWN TENNIS"
 DB_PATH   = Path(__file__).parent / "clt.db"
 
@@ -142,6 +146,24 @@ def get_expulsados(side: str, match_id: str) -> list:
     data = api_get({"action": f"Expulsados {side}", "id": match_id})
     return safe_list(data) or []
 
+def api_get_url(url: str, params: dict):
+    """GET a una URL arbitraria con throttling y retries."""
+    for attempt in range(RETRIES):
+        try:
+            _throttle()
+            r = _session.get(url, params=params, timeout=TIMEOUT)
+            r.raise_for_status()
+            return r.json()
+        except requests.RequestException as exc:
+            if attempt == RETRIES - 1:
+                log.warning("GET falló definitivamente: %s | %s", params, exc)
+                return None
+            backoff = 2 ** attempt
+            time.sleep(backoff)
+        except Exception as exc:
+            log.warning("Respuesta inválida: %s | %s", params, exc)
+            return None
+
 # ──────────────────────────────────────────────────────────────────────────────
 # SQLite — setup
 # ──────────────────────────────────────────────────────────────────────────────
@@ -224,6 +246,50 @@ def db_init(conn: sqlite3.Connection):
         CREATE TABLE IF NOT EXISTS processed_matches (
             match_id TEXT PRIMARY KEY,
             processed_at TEXT DEFAULT (datetime('now'))
+        );
+
+        -- Tabla de posiciones de la liga por temporada/torneo/serie
+        CREATE TABLE IF NOT EXISTS league_standings (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            season      INTEGER NOT NULL,
+            tournament  TEXT NOT NULL,
+            series      TEXT NOT NULL,
+            rank        INTEGER NOT NULL,
+            institution TEXT NOT NULL,
+            pj          INTEGER,
+            pg          INTEGER,
+            pe          INTEGER,
+            pp          INTEGER,
+            gf          INTEGER,
+            gc          INTEGER,
+            points      INTEGER,
+            UNIQUE(season, tournament, series, institution)
+        );
+
+        -- Goleadores de la liga por temporada/torneo/serie
+        CREATE TABLE IF NOT EXISTS league_scorers (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            season      INTEGER NOT NULL,
+            tournament  TEXT NOT NULL,
+            series      TEXT NOT NULL,
+            player_name TEXT NOT NULL,
+            institution TEXT NOT NULL,
+            goals       INTEGER,
+            UNIQUE(season, tournament, series, player_name, institution)
+        );
+
+        -- Valla menos vencida por temporada/torneo/serie
+        CREATE TABLE IF NOT EXISTS league_goalkeepers (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            season        INTEGER NOT NULL,
+            tournament    TEXT NOT NULL,
+            series        TEXT NOT NULL,
+            player_name   TEXT NOT NULL,
+            institution   TEXT NOT NULL,
+            goals_received INTEGER,
+            matches       INTEGER,
+            avg_per_match REAL,
+            UNIQUE(season, tournament, series, player_name, institution)
         );
     """)
     conn.commit()
@@ -396,7 +462,12 @@ def process_round(conn, season: int, torneo: str, serie: str, round_no) -> list:
     Descarga los partidos de una fecha y procesa los de CLT.
     Devuelve lista de match_ids de CLT encontrados.
     """
-    partidos = get_partidos(season, torneo, serie, round_no)
+    data = api_get({"action": "cargarPartidos", "temporada": str(season), "deporte": SPORT,
+                    "torneo": torneo, "serie": serie, "fecha": str(round_no)})
+    partidos = safe_list(data) or []
+    if data is None:
+        log.warning("  ⚠ API falló para fecha %s de %s / %s (S%d) — posibles datos perdidos",
+                    round_no, torneo, serie, season)
     clt_matches = []
 
     for p in partidos:
@@ -432,6 +503,122 @@ def clt_in_sample(conn, season, torneo, serie, sample_rounds) -> bool:
         if clt:
             return True
     return False
+
+def fetch_league_season_data(conn, season: int):
+    """
+    Descubre y guarda posiciones, goleadores y valla de la liga para todas las series
+    donde CLT aparece en esa temporada.
+
+    Las APIs de posiciones/goleadores/valla usan un esquema de parámetros diferente
+    al de detallefechas: torneo=<id_numerico> y serie=<codigo_corto> (ej: AT, APD, BT...).
+    Se prueban combinaciones para encontrar las que contienen a CLT.
+    """
+    # Códigos de serie más comunes en la liga de fútbol universitario uruguayo
+    SERIE_CODES = [
+        "AT", "APD", "BT", "BPD", "CT", "CPD", "DT", "DPD",
+        "ET", "EPD", "FT", "FPD", "GT", "GPD", "HT", "HPD",
+        "A", "B", "C", "D", "E", "F", "G",
+    ]
+    TORNEO_IDS = range(1, 12)
+
+    found_any = False
+    for torneo_id in TORNEO_IDS:
+        for serie_code in SERIE_CODES:
+            common = {
+                "temporada": str(season),
+                "deporte":   SPORT_API,
+                "torneo":    str(torneo_id),
+                "categoria": "1",
+                "serie":     serie_code,
+            }
+
+            pos_data = safe_list(api_get_url(BASE_URL_POS, {**common, "action": "cargarPosiciones"}))
+            if not pos_data:
+                continue
+
+            # Ver si CLT está en esta tabla
+            clt_in = any(TEAM in (row.get("Institucion") or "").upper() for row in pos_data)
+            if not clt_in:
+                continue
+
+            found_any = True
+            label = f"T{torneo_id}/{serie_code}"
+            log.info("  [S%d] Liga %s — CLT encontrado (%d equipos)", season, label, len(pos_data))
+
+            # Guardar posiciones
+            conn.execute(
+                "DELETE FROM league_standings WHERE season=? AND tournament=? AND series=?",
+                (season, label, label)
+            )
+            for rank, row in enumerate(pos_data, start=1):
+                conn.execute("""
+                    INSERT OR REPLACE INTO league_standings
+                        (season, tournament, series, rank, institution, pj, pg, pe, pp, gf, gc, points)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    season, label, label, rank,
+                    (row.get("Institucion") or "").strip(),
+                    _int(row.get("PJ")), _int(row.get("PG")), _int(row.get("PE")),
+                    _int(row.get("PP")), _int(row.get("GF")), _int(row.get("GC")),
+                    _int(row.get("Puntos")),
+                ))
+
+            # Goleadores
+            gol_data = safe_list(api_get_url(BASE_URL_GOL, {**common, "action": "cargarPartidos"}))
+            if gol_data:
+                conn.execute(
+                    "DELETE FROM league_scorers WHERE season=? AND tournament=? AND series=?",
+                    (season, label, label)
+                )
+                for row in gol_data:
+                    conn.execute("""
+                        INSERT OR REPLACE INTO league_scorers
+                            (season, tournament, series, player_name, institution, goals)
+                        VALUES (?,?,?,?,?,?)
+                    """, (
+                        season, label, label,
+                        (row.get("Jugador") or "").strip(),
+                        (row.get("Institucion") or "").strip(),
+                        _int(row.get("goles")),
+                    ))
+                log.info("    ↳ goleadores: %d", len(gol_data))
+
+            # Valla
+            valla_data = safe_list(api_get_url(BASE_URL_VALLA, {**common, "action": "cargarPartidos"}))
+            if valla_data:
+                conn.execute(
+                    "DELETE FROM league_goalkeepers WHERE season=? AND tournament=? AND series=?",
+                    (season, label, label)
+                )
+                for row in valla_data:
+                    gr  = _int(row.get("GR"))
+                    pts = _int(row.get("partidos"))
+                    try:
+                        avg = float(row.get("ppp") or 0)
+                    except (TypeError, ValueError):
+                        avg = (gr / pts) if pts else 0.0
+                    conn.execute("""
+                        INSERT OR REPLACE INTO league_goalkeepers
+                            (season, tournament, series, player_name, institution, goals_received, matches, avg_per_match)
+                        VALUES (?,?,?,?,?,?,?,?)
+                    """, (
+                        season, label, label,
+                        (row.get("Jugador") or "").strip(),
+                        (row.get("Institución") or row.get("Institucion") or "").strip(),
+                        gr, pts, round(avg, 4),
+                    ))
+                log.info("    ↳ valla: %d", len(valla_data))
+
+            conn.commit()
+
+    if not found_any:
+        log.debug("  [S%d] No se encontraron tablas de liga con CLT", season)
+
+def _int(val):
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return None
 
 def process_series(conn, season: int, torneo: str, serie: str,
                    skip_sampling: bool = False):
@@ -485,6 +672,8 @@ def process_series(conn, season: int, torneo: str, serie: str,
         process_match_detail(conn, mid, clt_side_api)
         log.info("    ✓ match %s procesado", mid)
 
+    # (los datos de liga se descargan una vez al finalizar la temporada)
+
 def process_season(conn, season: int, skip_sampling: bool = False):
     torneos = get_torneos(season)
     if not torneos:
@@ -503,6 +692,14 @@ def process_season(conn, season: int, skip_sampling: bool = False):
                 continue
             process_series(conn, season, torneo, serie, skip_sampling=skip_sampling)
 
+    # Descargar datos de liga (posiciones, goleadores, valla) para esta temporada
+    # Solo si CLT tiene partidos en la temporada
+    has_matches = conn.execute(
+        "SELECT 1 FROM matches WHERE season=? LIMIT 1", (season,)
+    ).fetchone()
+    if has_matches:
+        fetch_league_season_data(conn, season)
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Entrypoint
 # ──────────────────────────────────────────────────────────────────────────────
@@ -516,6 +713,8 @@ def main():
                        help="Solo extrae la última temporada con datos (para cron semanal)")
     group.add_argument("--season",      type=int, metavar="N",
                        help="Extrae una temporada específica (ej: --season 111)")
+    group.add_argument("--patch",       type=int, metavar="N",
+                       help="Re-procesa una temporada sin sampling para recuperar partidos faltantes")
     args = parser.parse_args()
 
     conn = db_connect()
@@ -526,6 +725,9 @@ def main():
     if args.incremental:
         log.info("=== Modo incremental — temporada %d ===", latest)
         process_season(conn, latest, skip_sampling=True)
+    elif args.patch:
+        log.info("=== Modo patch (sin sampling) — temporada %d ===", args.patch)
+        process_season(conn, args.patch, skip_sampling=True)
     elif args.season:
         log.info("=== Temporada específica: %d ===", args.season)
         process_season(conn, args.season, skip_sampling=False)

@@ -11,3 +11,4 @@ frontend/.env*.local
 
 # macOS
 .DS_Store
+.vercel

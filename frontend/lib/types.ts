@@ -30,7 +30,6 @@ export interface SeasonMeta {
 
 export interface SeasonsData {
   seasons: SeasonMeta[]
-  rivals: string[]
 }
 
 export interface Starter {
@@ -102,8 +101,47 @@ export interface Filters {
   seasons:     string[]   // años seleccionados (ej: ["2024","2025"])
   tournaments: string[]
   series:      string[]
-  rivals:      string[]
   sides:       string[]   // "home" | "away"
   results:     string[]   // "W" | "D" | "L"
   player:      string     // carne del jugador, o ""
 }
+
+// ─── Contexto de liga ───────────────────────────────────────────────────────
+
+export interface LeagueStanding {
+  rank: number
+  institution: string
+  pj: number
+  pg: number
+  pe: number
+  pp: number
+  gf: number
+  gc: number
+  points: number
+}
+
+export interface LeagueScorer {
+  player: string
+  institution: string
+  goals: number
+}
+
+export interface LeagueGoalkeeper {
+  player: string
+  institution: string
+  gr: number
+  matches: number
+  ppp: number
+}
+
+export interface SeriesLeagueContext {
+  label: string            // ej: "T2/AT"
+  standings: LeagueStanding[]
+  clt_rank: number | null
+  clt_points: number | null
+  scorers: LeagueScorer[]
+  goalkeepers: LeagueGoalkeeper[]
+}
+
+// league_context.json: { [season_number]: SeriesLeagueContext[] }
+export type LeagueContext = Record<string, SeriesLeagueContext[]>

@@ -213,19 +213,18 @@ export default function FiltersPanel({ data, filters, players, onChange }: Props
   const seasonOpts  = data.seasons.map(s => ({ value: String(s.year), label: String(s.year) }))
   const tourneyOpts = allTournaments.map(t => ({ value: t, label: t }))
   const seriesOpts  = allSeries.map(s => ({ value: s, label: s }))
-  const rivalOpts   = data.rivals.map(r => ({ value: r, label: toProperCase(r) }))
   const playerOpts  = players.map(p => ({ value: p.carne, label: toProperCase(p.name) }))
 
   const hasFilters = filters.seasons.length > 0 || filters.tournaments.length > 0 ||
-    filters.series.length > 0 || filters.rivals.length > 0 ||
+    filters.series.length > 0 ||
     filters.sides.length > 0 || filters.results.length > 0 || filters.player !== ""
 
   const activeCount = filters.seasons.length + filters.tournaments.length +
-    filters.series.length + filters.rivals.length +
+    filters.series.length +
     filters.sides.length + filters.results.length + (filters.player ? 1 : 0)
 
   const clearAll = () => onChange({
-    seasons: [], tournaments: [], series: [], rivals: [], sides: [], results: [], player: ""
+    seasons: [], tournaments: [], series: [], sides: [], results: [], player: ""
   })
 
   const chips: { label: string; onRemove: () => void }[] = [
@@ -237,9 +236,6 @@ export default function FiltersPanel({ data, filters, players, onChange }: Props
     })),
     ...filters.series.map(s => ({
       label: s, onRemove: () => set("series", filters.series.filter(x => x !== s))
-    })),
-    ...filters.rivals.map(r => ({
-      label: toProperCase(r), onRemove: () => set("rivals", filters.rivals.filter(x => x !== r))
     })),
     ...filters.sides.map(s => ({
       label: s === "home" ? "Local" : "Visitante",
@@ -297,13 +293,6 @@ export default function FiltersPanel({ data, filters, players, onChange }: Props
             selected={filters.series}
             onToggle={v => set("series", toggle(filters.series, v))}
             disabled={allSeries.length === 0}
-          />
-          <SearchSelect
-            label="Rival"
-            options={rivalOpts}
-            selected={filters.rivals}
-            onToggle={v => set("rivals", toggle(filters.rivals, v))}
-            placeholder="Buscar rival..."
           />
           <MultiSelect
             label="Condición"

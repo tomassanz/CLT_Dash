@@ -1,5 +1,4 @@
 "use client"
-import Link from "next/link"
 import type { Match } from "@/lib/types"
 import { rival, formatDate } from "@/lib/data"
 import ResultBadge from "./ResultBadge"
@@ -7,9 +6,10 @@ import { Home, Plane } from "lucide-react"
 
 interface Props {
   matches: Match[]
+  onOpen: (match: Match) => void
 }
 
-export default function MatchTable({ matches }: Props) {
+export default function MatchTable({ matches, onOpen }: Props) {
   if (matches.length === 0) {
     return (
       <div className="text-center py-12 text-gray-400">
@@ -32,14 +32,14 @@ export default function MatchTable({ matches }: Props) {
               <th className="text-center px-3 py-2.5 font-semibold">Res.</th>
               <th className="text-center px-3 py-2.5 font-semibold">Goles</th>
               <th className="text-left px-3 py-2.5 font-semibold hidden lg:table-cell">Cancha</th>
-              <th className="px-3 py-2.5"></th>
             </tr>
           </thead>
           <tbody>
             {matches.map((m, i) => (
               <tr
                 key={m.id}
-                className="border-t transition-colors hover:bg-[#FAF6F1]"
+                onClick={() => onOpen(m)}
+                className="border-t transition-colors hover:bg-[#FAF6F1] cursor-pointer"
                 style={{ borderColor: "#F0E8DF", backgroundColor: i % 2 === 0 ? "white" : "#FDFAF7" }}
               >
                 <td className="px-3 py-2 whitespace-nowrap text-gray-500 text-xs">
@@ -64,23 +64,6 @@ export default function MatchTable({ matches }: Props) {
                 <td className="px-3 py-2 hidden lg:table-cell text-xs text-gray-400 max-w-[160px] truncate">
                   {m.venue ?? "—"}
                 </td>
-                <td className="px-3 py-2 text-right">
-                  <Link
-                    href={`/partido/${m.id}`}
-                    className="text-xs px-2 py-1 rounded font-medium transition-colors hover:text-white"
-                    style={{ color: "#6B2D2D", border: "1px solid #6B2D2D" }}
-                    onMouseEnter={e => {
-                      ;(e.currentTarget as HTMLElement).style.backgroundColor = "#6B2D2D"
-                      ;(e.currentTarget as HTMLElement).style.color = "white"
-                    }}
-                    onMouseLeave={e => {
-                      ;(e.currentTarget as HTMLElement).style.backgroundColor = "transparent"
-                      ;(e.currentTarget as HTMLElement).style.color = "#6B2D2D"
-                    }}
-                  >
-                    Ver
-                  </Link>
-                </td>
               </tr>
             ))}
           </tbody>
@@ -90,21 +73,18 @@ export default function MatchTable({ matches }: Props) {
       {/* Mobile cards */}
       <div className="sm:hidden space-y-2">
         {matches.map(m => (
-          <Link
+          <button
             key={m.id}
-            href={`/partido/${m.id}`}
-            className="block bg-white rounded-lg border shadow-sm p-3 transition-colors hover:bg-[#FAF6F1] active:bg-[#FAF6F1]"
+            onClick={() => onOpen(m)}
+            className="w-full text-left block bg-white rounded-lg border shadow-sm p-3 transition-colors hover:bg-[#FAF6F1] active:bg-[#FAF6F1]"
             style={{ borderColor: "#F0E8DF" }}
           >
-            {/* Top row: torneo + fecha */}
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#6B2D2D" }}>
                 {m.tournament} · {m.series}
               </span>
               <span className="text-[10px] text-gray-400">{formatDate(m.datetime)}</span>
             </div>
-
-            {/* Score row */}
             <div className="flex items-center gap-3">
               <ResultBadge result={m.result} size="sm" />
               <div className="flex-1 min-w-0">
@@ -117,7 +97,7 @@ export default function MatchTable({ matches }: Props) {
                 {m.gf} <span className="text-gray-300">-</span> {m.ga}
               </div>
             </div>
-          </Link>
+          </button>
         ))}
       </div>
     </>

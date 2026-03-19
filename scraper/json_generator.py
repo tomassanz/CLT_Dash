@@ -195,7 +195,6 @@ def gen_players_stats(conn):
         WHERE g.is_own_goal = 0
         GROUP BY g.player_carne, g.player_name
         ORDER BY goals DESC, name
-        LIMIT 100
     """).fetchall()
 
     scorers = [
@@ -224,7 +223,6 @@ def gen_players_stats(conn):
         )
         WHERE total > 0
         ORDER BY total DESC, name
-        LIMIT 100
     """).fetchall()
 
     appearances = [
@@ -236,6 +234,98 @@ def gen_players_stats(conn):
     data = {"scorers": scorers, "appearances": appearances}
     write_json(OUT_DIR / "players_stats.json", data,
                f"players_stats.json ({len(scorers)} goleadores, {len(appearances)} jugadores)")
+
+# ──────────────────────────────────────────────────────────────────────────────
+# league_context.json — posiciones, goleadores y valla por temporada/torneo/serie
+# ──────────────────────────────────────────────────────────────────────────────
+
+def gen_league_context(conn):
+    # Verificar que las tablas existen (pueden no existir en DBs antiguas)
+    tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+    if "league_standings" not in tables:
+        print("  ⚠ league_standings no existe — saltando league_context.json")
+        return
+
+    # result[season] = lista de contextos de series donde CLT aparece
+    result = {}
+
+    combos = conn.execute("""
+        SELECT DISTINCT season, tournament, series FROM league_standings
+        ORDER BY season, tournament, series
+    """).fetchall()
+
+    for combo in combos:
+        season_num = combo["season"]
+        season_key = str(season_num)
+        torneo     = combo["tournament"]
+        serie      = combo["series"]
+
+        # Posiciones
+        standings_rows = conn.execute("""
+            SELECT rank, institution, pj, pg, pe, pp, gf, gc, points
+            FROM league_standings
+            WHERE season=? AND tournament=? AND series=?
+            ORDER BY rank
+        """, (season_num, torneo, serie)).fetchall()
+
+        standings = []
+        clt_rank   = None
+        clt_points = None
+        for r in standings_rows:
+            inst = r["institution"]
+            standings.append({
+                "rank": r["rank"], "institution": inst,
+                "pj": r["pj"], "pg": r["pg"], "pe": r["pe"], "pp": r["pp"],
+                "gf": r["gf"], "gc": r["gc"], "points": r["points"],
+            })
+            if "CARRASCO LAWN TENNIS" in inst.upper():
+                clt_rank   = r["rank"]
+                clt_points = r["points"]
+
+        # Goleadores
+        scorers_rows = conn.execute("""
+            SELECT player_name, institution, goals
+            FROM league_scorers
+            WHERE season=? AND tournament=? AND series=?
+            ORDER BY goals DESC, player_name
+        """, (season_num, torneo, serie)).fetchall()
+
+        scorers = [
+            {"player": r["player_name"], "institution": r["institution"], "goals": r["goals"]}
+            for r in scorers_rows
+        ]
+
+        # Valla
+        gk_rows = conn.execute("""
+            SELECT player_name, institution, goals_received, matches, avg_per_match
+            FROM league_goalkeepers
+            WHERE season=? AND tournament=? AND series=?
+            ORDER BY avg_per_match ASC, goals_received ASC, player_name
+        """, (season_num, torneo, serie)).fetchall()
+
+        goalkeepers = [
+            {"player": r["player_name"], "institution": r["institution"],
+             "gr": r["goals_received"], "matches": r["matches"],
+             "ppp": r["avg_per_match"]}
+            for r in gk_rows
+        ]
+
+        ctx = {
+            "label":       serie,  # ej: "T2/AT"
+            "standings":   standings,
+            "clt_rank":    clt_rank,
+            "clt_points":  clt_points,
+            "scorers":     scorers,
+            "goalkeepers": goalkeepers,
+        }
+
+        result.setdefault(season_key, []).append(ctx)
+
+    total_series = sum(len(v) for v in result.values())
+    write_json(OUT_DIR / "league_context.json", result,
+               f"league_context.json ({len(result)} temporadas, {total_series} tablas)")
 
 # ──────────────────────────────────────────────────────────────────────────────
 # last_updated.json — timestamp
@@ -265,6 +355,7 @@ def main():
     gen_seasons(conn)
     gen_match_details(conn)
     gen_players_stats(conn)
+    gen_league_context(conn)
     gen_last_updated(conn)
 
     conn.close()
