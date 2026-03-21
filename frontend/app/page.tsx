@@ -153,7 +153,7 @@ export default function LandingPage() {
           </p>
 
           {/* CTA */}
-          <div className={`mt-8 transition-all duration-500 delay-500 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+          <div className={`mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 transition-all duration-500 delay-500 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <Link
               href="/historia"
               className="inline-block px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 hover:bg-[#c99b38]"
@@ -161,12 +161,19 @@ export default function LandingPage() {
             >
               Explorar la historia
             </Link>
+            <Link
+              href="/jugador"
+              className="inline-block px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 border hover:bg-white/10"
+              style={{ color: "#D4A843", borderColor: "#D4A84366" }}
+            >
+              Buscar jugadores
+            </Link>
           </div>
         </div>
 
         {/* Scroll hint */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4A84344" strokeWidth="2">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D4A843" strokeWidth="2" opacity="0.6">
             <path d="M12 5v14M5 12l7 7 7-7" />
           </svg>
         </div>

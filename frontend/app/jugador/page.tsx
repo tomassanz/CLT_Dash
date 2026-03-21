@@ -140,15 +140,15 @@ export default function JugadorPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
-      <div className="mb-6">
+      <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold" style={{ color: "#6B2D2D" }}>Jugadores</h1>
         <p className="text-sm text-gray-500 mt-1">Buscá un jugador para ver su ficha completa</p>
       </div>
 
       {/* Search bar */}
-      <div className="relative mb-6">
-        <div className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2 shadow-sm" style={{ borderColor: "#D4A843" }}>
-          <Search size={18} className="text-gray-400 shrink-0" />
+      <div className="relative mb-8 max-w-md mx-auto">
+        <div className="flex items-center gap-3 bg-white border-2 rounded-xl px-4 py-3 shadow-sm transition-shadow focus-within:shadow-md" style={{ borderColor: "#D4A843" }}>
+          <Search size={20} style={{ color: "#D4A843" }} className="shrink-0" />
           <input
             type="text"
             value={query}

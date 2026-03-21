@@ -102,10 +102,11 @@ export default function MatchModal({ match: initialMatch, detail: initialDetail,
           {/* Close */}
           <button
             onClick={onClose}
-            className="shrink-0 p-1 rounded-full hover:bg-gray-200 transition-colors"
+            className="shrink-0 p-1.5 rounded-full hover:bg-gray-200 transition-colors"
+            style={{ backgroundColor: "#F0E8DF" }}
             aria-label="Cerrar"
           >
-            <X size={18} className="text-gray-500" />
+            <X size={18} style={{ color: "#6B2D2D" }} />
           </button>
         </div>
 
