@@ -53,8 +53,8 @@ function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: stri
       ([entry]) => {
         if (entry.isIntersecting && !hasAnimated.current) {
           hasAnimated.current = true
-          const duration = 2000
-          const steps = 60
+          const duration = 1800
+          const steps = 50
           const increment = target / steps
           let current = 0
           const interval = setInterval(() => {
@@ -75,7 +75,7 @@ function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: stri
   }, [target])
 
   return (
-    <div ref={ref} className="font-playfair text-4xl sm:text-5xl md:text-6xl font-black" style={{ color: "#D4A843" }}>
+    <div ref={ref} className="font-display text-5xl sm:text-6xl md:text-7xl font-black uppercase" style={{ color: "#D4A843" }}>
       {count.toLocaleString("es-UY")}{suffix}
     </div>
   )
@@ -84,13 +84,13 @@ function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: stri
 /* ── Feature card ───────────────────────────────────────────────────────────── */
 function FeatureCard({ emoji, title, desc }: { emoji: string; title: string; desc: string }) {
   return (
-    <div className="group bg-white rounded-xl p-6 border transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+    <div className="group bg-white rounded-lg p-5 border transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
       style={{ borderColor: "#F0E8DF" }}>
-      <div className="flex items-start gap-4">
-        <div className="w-1 self-stretch rounded-full transition-colors duration-300 bg-transparent group-hover:bg-[#D4A843]" />
+      <div className="flex items-start gap-3">
+        <div className="w-1 self-stretch rounded-full transition-colors duration-200 bg-transparent group-hover:bg-[#D4A843]" />
         <div>
-          <span className="text-2xl">{emoji}</span>
-          <h3 className="font-playfair text-lg font-bold mt-2" style={{ color: "#3A1A1A" }}>{title}</h3>
+          <span className="text-xl">{emoji}</span>
+          <h3 className="font-display text-base font-bold uppercase tracking-wide mt-2" style={{ color: "#3A1A1A" }}>{title}</h3>
           <p className="text-sm text-gray-600 mt-1 leading-relaxed">{desc}</p>
         </div>
       </div>
@@ -109,7 +109,7 @@ export default function LandingPage() {
   }, [])
 
   return (
-    <div className="landing-page">
+    <div>
       {/* ═══════════════════════════════════════════════════════════════════════
           HERO
       ═══════════════════════════════════════════════════════════════════════ */}
@@ -125,49 +125,49 @@ export default function LandingPage() {
         {/* Content */}
         <div className="relative z-10 text-center px-6 max-w-3xl mx-auto">
           {/* Badge */}
-          <div className={`transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            <span className="inline-block text-[10px] sm:text-xs tracking-[0.3em] uppercase px-4 py-1.5 rounded-full border"
-              style={{ color: "#D4A843", borderColor: "#D4A84366" }}>
-              Nueva plataforma &middot; 2026
+          <div className={`transition-all duration-500 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+            <span className="inline-block text-[10px] sm:text-xs tracking-[0.25em] uppercase px-3 py-1 rounded-sm border font-medium"
+              style={{ color: "#D4A843", borderColor: "#D4A84355" }}>
+              NUEVA PLATAFORMA &middot; 2026
             </span>
           </div>
 
           {/* Club icon */}
-          <div className={`mt-8 transition-all duration-700 delay-150 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+          <div className={`mt-8 transition-all duration-500 delay-100 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <Image
               src="/icon.jpg"
               alt="CLT"
-              width={80}
-              height={80}
+              width={72}
+              height={72}
               className="rounded-full border-2 mx-auto"
               style={{ borderColor: "#D4A843" }}
             />
           </div>
 
           {/* Title */}
-          <h1 className={`font-playfair text-4xl sm:text-5xl md:text-7xl font-black mt-6 tracking-tight transition-all duration-700 delay-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+          <h1 className={`font-display text-5xl sm:text-6xl md:text-8xl font-black mt-6 uppercase leading-[0.9] tracking-tight transition-all duration-500 delay-200 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
             style={{ color: "#FFFFFF" }}>
             CARRASCO<br />LAWN TENNIS
           </h1>
 
           {/* Subtitle */}
-          <p className={`font-playfair text-lg sm:text-xl md:text-2xl italic mt-4 transition-all duration-700 delay-500 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+          <p className={`text-base sm:text-lg md:text-xl mt-5 uppercase tracking-widest font-semibold transition-all duration-500 delay-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
             style={{ color: "#D4A843" }}>
-            Toda la historia del futbol, en un solo lugar
+            Toda la historia del futbol en un solo lugar
           </p>
 
           {/* Description */}
-          <p className={`text-sm sm:text-base mt-6 leading-relaxed max-w-xl mx-auto transition-all duration-700 delay-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
-            style={{ color: "#FFFFFF99" }}>
+          <p className={`text-sm sm:text-base mt-5 leading-relaxed max-w-lg mx-auto transition-all duration-500 delay-400 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+            style={{ color: "#FFFFFF88" }}>
             Por primera vez, todos los partidos, todos los goles, todos los jugadores del futbol de CLT
-            en la Liga Universitaria &mdash; desde los primeros registros hasta el ultimo fin de semana.
+            en la Liga Universitaria — desde los primeros registros hasta el ultimo fin de semana.
           </p>
 
           {/* CTA */}
-          <div className={`mt-10 transition-all duration-700 delay-900 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+          <div className={`mt-8 transition-all duration-500 delay-500 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <Link
               href="/historia"
-              className="inline-block px-8 py-3 rounded-lg text-sm sm:text-base font-bold tracking-wide transition-all duration-300 hover:scale-105 hover:shadow-xl"
+              className="inline-block px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 hover:bg-[#c99b38]"
               style={{ backgroundColor: "#D4A843", color: "#2A1010" }}
             >
               Explorar la historia
@@ -177,7 +177,7 @@ export default function LandingPage() {
 
         {/* Scroll hint */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D4A84366" strokeWidth="2">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4A84344" strokeWidth="2">
             <path d="M12 5v14M5 12l7 7 7-7" />
           </svg>
         </div>
@@ -186,24 +186,24 @@ export default function LandingPage() {
       {/* ═══════════════════════════════════════════════════════════════════════
           STATS
       ═══════════════════════════════════════════════════════════════════════ */}
-      <section className="py-16 sm:py-20" style={{ backgroundColor: "#6B2D2D" }}>
+      <section className="py-14 sm:py-18" style={{ backgroundColor: "#6B2D2D" }}>
         <div className="max-w-5xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             <div>
               <AnimatedNumber target={stats.matches} />
-              <div className="text-xs sm:text-sm uppercase tracking-widest mt-2" style={{ color: "#FFFFFF99" }}>Partidos</div>
+              <div className="text-xs uppercase tracking-[0.2em] mt-2 font-medium" style={{ color: "#FFFFFF77" }}>Partidos</div>
             </div>
             <div>
               <AnimatedNumber target={stats.seasons} />
-              <div className="text-xs sm:text-sm uppercase tracking-widest mt-2" style={{ color: "#FFFFFF99" }}>Temporadas</div>
+              <div className="text-xs uppercase tracking-[0.2em] mt-2 font-medium" style={{ color: "#FFFFFF77" }}>Temporadas</div>
             </div>
             <div>
               <AnimatedNumber target={stats.players} suffix="+" />
-              <div className="text-xs sm:text-sm uppercase tracking-widest mt-2" style={{ color: "#FFFFFF99" }}>Jugadores</div>
+              <div className="text-xs uppercase tracking-[0.2em] mt-2 font-medium" style={{ color: "#FFFFFF77" }}>Jugadores</div>
             </div>
             <div>
               <AnimatedNumber target={stats.categories} />
-              <div className="text-xs sm:text-sm uppercase tracking-widest mt-2" style={{ color: "#FFFFFF99" }}>Categorias</div>
+              <div className="text-xs uppercase tracking-[0.2em] mt-2 font-medium" style={{ color: "#FFFFFF77" }}>Categorias</div>
             </div>
           </div>
         </div>
@@ -212,12 +212,12 @@ export default function LandingPage() {
       {/* ═══════════════════════════════════════════════════════════════════════
           FEATURES
       ═══════════════════════════════════════════════════════════════════════ */}
-      <section className="py-16 sm:py-20" style={{ backgroundColor: "#FAF6F1" }}>
+      <section className="py-14 sm:py-18" style={{ backgroundColor: "#FAF6F1" }}>
         <div className="max-w-4xl mx-auto px-6">
-          <h2 className="font-playfair text-2xl sm:text-3xl font-bold text-center mb-12" style={{ color: "#3A1A1A" }}>
-            ¿Que vas a encontrar?
+          <h2 className="font-display text-2xl sm:text-3xl font-black uppercase tracking-wide text-center mb-10" style={{ color: "#3A1A1A" }}>
+            ¿QUE VAS A ENCONTRAR?
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <FeatureCard
               emoji="📊"
               title="Todos los resultados"
@@ -245,21 +245,21 @@ export default function LandingPage() {
       {/* ═══════════════════════════════════════════════════════════════════════
           CTA FINAL
       ═══════════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-20 sm:py-24 overflow-hidden" style={{ backgroundColor: "#2A1010" }}>
+      <section className="relative py-16 sm:py-20 overflow-hidden" style={{ backgroundColor: "#2A1010" }}>
         <div className="absolute inset-0 landing-stripes" />
         <div className="absolute inset-0 landing-grain" />
 
         <div className="relative z-10 text-center px-6 max-w-2xl mx-auto">
-          <h2 className="font-playfair text-2xl sm:text-3xl md:text-4xl font-bold" style={{ color: "#FFFFFF" }}>
-            La historia se escribe cada fin de semana
+          <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-black uppercase tracking-wide" style={{ color: "#FFFFFF" }}>
+            LA HISTORIA SE ESCRIBE CADA FIN DE SEMANA
           </h2>
-          <p className="text-sm sm:text-base mt-4" style={{ color: "#FFFFFF99" }}>
+          <p className="text-sm sm:text-base mt-4" style={{ color: "#FFFFFF77" }}>
             Resultados actualizados automaticamente despues de cada fecha.
           </p>
-          <div className="mt-10">
+          <div className="mt-8">
             <Link
               href="/actualidad"
-              className="landing-cta-pulse inline-block px-8 py-3 rounded-lg text-sm sm:text-base font-bold tracking-wide transition-all duration-300 hover:scale-105"
+              className="inline-block px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 hover:bg-[#c99b38]"
               style={{ backgroundColor: "#D4A843", color: "#2A1010" }}
             >
               Ver resultados recientes

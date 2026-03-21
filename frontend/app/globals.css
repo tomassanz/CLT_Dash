@@ -20,9 +20,9 @@
   --color-draw:         #ca8a04;
   --color-loss:         #dc2626;
 
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-barlow);
   --font-mono: var(--font-geist-mono);
-  --font-playfair: var(--font-playfair);
+  --font-display: var(--font-barlow-cond);
 }
 
 * {
@@ -32,7 +32,7 @@
 body {
   background-color: #FAF6F1;
   color: #3A1A1A;
-  font-family: var(--font-geist-sans, system-ui, sans-serif);
+  font-family: var(--font-barlow, system-ui, sans-serif);
 }
 
 /* Scrollbar sutil */
@@ -54,9 +54,9 @@ body {
   border-radius: 2px;
 }
 
-/* ── Playfair Display utility ── */
-.font-playfair {
-  font-family: var(--font-playfair), Georgia, "Times New Roman", serif;
+/* ── Barlow Condensed display utility ── */
+.font-display {
+  font-family: var(--font-barlow-cond), "Arial Narrow", sans-serif;
 }
 
 /* ── Landing page styles ── */
@@ -75,15 +75,6 @@ body {
   background-repeat: repeat;
   background-size: 256px 256px;
   pointer-events: none;
-}
-
-.landing-cta-pulse {
-  animation: cta-glow 2.5s ease-in-out infinite;
-}
-
-@keyframes cta-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(212, 168, 67, 0); }
-  50% { box-shadow: 0 0 20px 4px rgba(212, 168, 67, 0.3); }
 }
 
 /* Separador horizontal bordo/blanco */

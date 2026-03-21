@@ -1,12 +1,12 @@
 import type { Metadata } from "next"
-import { Geist, Playfair_Display } from "next/font/google"
+import { Barlow_Condensed, Barlow } from "next/font/google"
 import Link from "next/link"
 import Image from "next/image"
 import { Suspense } from "react"
 import "./globals.css"
 
-const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
-const playfair = Playfair_Display({ variable: "--font-playfair", subsets: ["latin"], weight: ["400", "700", "900"] })
+const barlow = Barlow({ variable: "--font-barlow", subsets: ["latin"], weight: ["400", "500", "600", "700"] })
+const barlowCond = Barlow_Condensed({ variable: "--font-barlow-cond", subsets: ["latin"], weight: ["700", "800", "900"] })
 
 export const metadata: Metadata = {
   title: "CLT Fútbol — Historia",
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body className={`${geist.variable} ${playfair.variable} antialiased`}>
+      <body className={`${barlow.variable} ${barlowCond.variable} antialiased`}>
         {/* ── Header ── */}
         <header style={{ backgroundColor: "#6B2D2D" }} className="text-white shadow-md">
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
