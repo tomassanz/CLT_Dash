@@ -82,18 +82,11 @@ function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: stri
 }
 
 /* ── Feature card ───────────────────────────────────────────────────────────── */
-function FeatureCard({ emoji, title, desc }: { emoji: string; title: string; desc: string }) {
+function FeatureCard({ title, desc }: { title: string; desc: string }) {
   return (
-    <div className="group bg-white rounded-lg p-5 border transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
-      style={{ borderColor: "#F0E8DF" }}>
-      <div className="flex items-start gap-3">
-        <div className="w-1 self-stretch rounded-full transition-colors duration-200 bg-transparent group-hover:bg-[#D4A843]" />
-        <div>
-          <span className="text-xl">{emoji}</span>
-          <h3 className="font-display text-base font-bold uppercase tracking-wide mt-2" style={{ color: "#3A1A1A" }}>{title}</h3>
-          <p className="text-sm text-gray-600 mt-1 leading-relaxed">{desc}</p>
-        </div>
-      </div>
+    <div className="border-l-3 pl-4 py-1" style={{ borderColor: "#D4A843" }}>
+      <h3 className="font-display text-base sm:text-lg font-bold uppercase tracking-wide" style={{ color: "#3A1A1A" }}>{title}</h3>
+      <p className="text-sm text-gray-500 mt-1 leading-relaxed">{desc}</p>
     </div>
   )
 }
@@ -217,25 +210,21 @@ export default function LandingPage() {
           <h2 className="font-display text-2xl sm:text-3xl font-black uppercase tracking-wide text-center mb-10" style={{ color: "#3A1A1A" }}>
             ¿QUE VAS A ENCONTRAR?
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <FeatureCard
-              emoji="📊"
               title="Todos los resultados"
               desc="Cada partido, cada gol, cada fecha. La historia completa del futbol de CLT en la Liga Universitaria."
             />
             <FeatureCard
-              emoji="👤"
               title="Fichas de jugadores"
               desc="Busca cualquier jugador y encontra sus estadisticas: partidos, goles, tarjetas y mas."
             />
             <FeatureCard
-              emoji="🏆"
               title="Todas las categorias"
               desc="Desde Plantel Superior hasta Sub 14, pasando por +32, +40 y femenino. Todo en un mismo lugar."
             />
             <FeatureCard
-              emoji="📅"
-              title="Actualidad en vivo"
+              title="Actualidad"
               desc="Los resultados del ultimo fin de semana, actualizados automaticamente cada semana."
             />
           </div>
