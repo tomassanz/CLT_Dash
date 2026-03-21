@@ -159,8 +159,8 @@ export default function LandingPage() {
           {/* Description */}
           <p className={`text-sm sm:text-base mt-5 leading-relaxed max-w-lg mx-auto transition-all duration-500 delay-400 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
             style={{ color: "#FFFFFF88" }}>
-            Por primera vez, todos los partidos, todos los goles, todos los jugadores del futbol de CLT
-            en la Liga Universitaria — desde los primeros registros hasta el ultimo fin de semana.
+            Por primera vez, todos los detalles del CLT en la Liga Universitaria
+            — desde los primeros registros hasta el ultimo fin de semana.
           </p>
 
           {/* CTA */}
