@@ -89,10 +89,10 @@ function Header() {
             style={{ borderColor: "#D4A843" }}
           />
           <div className="flex flex-col leading-tight">
-            <span className="font-bold text-xs sm:text-lg tracking-wide whitespace-nowrap" style={{ color: "#D4A843" }}>
+            <span className="font-bold text-base sm:text-lg tracking-wide" style={{ color: "#D4A843" }}>
               CARRASCO LAWN TENNIS
             </span>
-            <span className="text-[9px] sm:text-xs tracking-widest text-white/70 uppercase whitespace-nowrap">
+            <span className="text-[10px] sm:text-xs tracking-widest text-white/70 uppercase">
               Fútbol · Liga Universitaria
             </span>
           </div>
