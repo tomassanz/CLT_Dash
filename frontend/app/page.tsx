@@ -243,7 +243,7 @@ export default function LandingPage() {
             LA HISTORIA SE ESCRIBE CADA FIN DE SEMANA
           </h2>
           <p className="text-sm sm:text-base mt-4" style={{ color: "#FFFFFF77" }}>
-            Resultados actualizados automaticamente despues de cada fecha.
+            Partidos, goles y estadisticas al dia. Siempre.
           </p>
           <div className="mt-8">
             <Link
