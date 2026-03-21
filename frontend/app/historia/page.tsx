@@ -304,7 +304,7 @@ export default function HistoriaPage() {
 
   const setFilters = (f: Filters) => {
     const qs = filtersToParams(f)
-    router.replace(qs ? `/?${qs}` : "/", { scroll: false })
+    router.replace(qs ? `/historia?${qs}` : "/historia", { scroll: false })
   }
 
   // Cargar league_context una sola vez
