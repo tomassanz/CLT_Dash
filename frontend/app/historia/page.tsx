@@ -289,7 +289,7 @@ export default function HistoriaPage() {
   const [playerIdx,   setPlayerIdx]   = useState<PlayerIndex>(new Map())
   const [loading,     setLoading]     = useState(true)
 
-  const [tab,         setTab]         = useState<"partidos" | "goleadores" | "presencias" | "liga">("partidos")
+  const [tab,         setTab]         = useState<"partidos" | "goleadores" | "presencias">("partidos")
   const [scorers,     setScorers]     = useState<ScorerWithSeasons[]>([])
   const [appearances, setAppearances] = useState<AppearanceStat[]>([])
   const [rankLoading, setRankLoading] = useState(false)
@@ -392,7 +392,7 @@ export default function HistoriaPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 border-b" style={{ borderColor: "#F0E8DF" }}>
-        {(["partidos", "goleadores", "presencias", "liga"] as const).map(t => (
+        {(["partidos", "goleadores", "presencias"] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -406,12 +406,7 @@ export default function HistoriaPage() {
               ? `Partidos (${filtered.length})`
               : t === "goleadores"
               ? "Goleadores"
-              : t === "presencias"
-              ? "Más presencias"
-              : <span className="flex items-center gap-1.5">
-                  Liga
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "#D4A843", color: "#3A1A1A" }}>BETA</span>
-                </span>}
+              : "Más presencias"}
           </button>
         ))}
       </div>
@@ -428,16 +423,6 @@ export default function HistoriaPage() {
         rankLoading
           ? <div className="text-center py-8 text-gray-400 text-sm">Calculando...</div>
           : <div className="max-w-lg"><AppearancesTable appearances={appearances} /></div>
-      )}
-
-      {tab === "liga" && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: "#FFF8EC", border: "1px solid #D4A843", color: "#9a7a2e" }}>
-            <span className="font-bold px-1.5 py-0.5 rounded-full text-[10px]" style={{ backgroundColor: "#D4A843", color: "#3A1A1A" }}>BETA</span>
-            <span>Función en prueba — por ahora solo disponible para la temporada <strong>2025</strong>. Los datos pueden estar incompletos.</span>
-          </div>
-          <LeagueContextPanel ctxList={leagueCtxList} filters={filters} />
-        </div>
       )}
 
       {modal && (

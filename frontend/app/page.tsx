@@ -20,11 +20,7 @@ function useStats(): LandingStats {
       fetch("/data/players_stats.json").then(r => r.json()),
     ]).then(([matches, ps]) => {
       const seasonSet = new Set<number>()
-      const catSet = new Set<string>()
-      for (const m of matches) {
-        seasonSet.add(m.season)
-        catSet.add(m.tournament)
-      }
+      for (const m of matches) seasonSet.add(m.season)
       const playerSet = new Set<string>()
       for (const p of ps.appearances) playerSet.add(p.carne)
       for (const p of ps.scorers) playerSet.add(p.carne)
@@ -33,7 +29,7 @@ function useStats(): LandingStats {
         matches: matches.length,
         seasons: seasonSet.size,
         players: playerSet.size,
-        categories: catSet.size,
+        categories: 9,
       })
     }).catch(() => {})
   }, [])

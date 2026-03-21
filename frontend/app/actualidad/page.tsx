@@ -1,16 +1,15 @@
 "use client"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import type { Match, MatchDetail, LastUpdated, SeriesLeagueContext } from "@/lib/types"
-import { loadMatches, loadLastUpdated, loadMatchDetail, loadLeagueContext, formatDate, toProperCase } from "@/lib/data"
+import type { Match, MatchDetail, LastUpdated } from "@/lib/types"
+import { loadMatches, loadLastUpdated, loadMatchDetail, formatDate, toProperCase } from "@/lib/data"
 import ResultBadge from "@/components/ResultBadge"
-import { Home, Plane, MapPin, Calendar, Trophy } from "lucide-react"
+import { Home, Plane, MapPin, Calendar } from "lucide-react"
 
 export default function ActualidadPage() {
   const [matches, setMatches] = useState<Match[]>([])
   const [details, setDetails] = useState<Map<string, MatchDetail>>(new Map())
   const [lastUpdated, setLastUpdated] = useState<LastUpdated | null>(null)
-  const [leagueContexts, setLeagueContexts] = useState<SeriesLeagueContext[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -47,11 +46,6 @@ export default function ActualidadPage() {
           setDetails(map)
         })
 
-        // Cargar contexto de liga para la temporada actual
-        const seasonNum = String(lu.latest_season)
-        loadLeagueContext().then(lc => {
-          setLeagueContexts(lc[seasonNum] ?? [])
-        }).catch(() => {})
       })
       .finally(() => setLoading(false))
   }, [])
@@ -233,73 +227,17 @@ export default function ActualidadPage() {
         </div>
       )}
 
-      {/* Tablas de posiciones de la temporada actual */}
-      {leagueContexts.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-sm font-bold uppercase tracking-wide mb-3 flex items-center gap-2" style={{ color: "#6B2D2D" }}>
-            <Trophy size={14} /> Posiciones
-          </h2>
-          <div className="space-y-4">
-            {leagueContexts.map((ctx, idx) => {
-              return (
-                <div key={idx} className="bg-white rounded-xl border shadow-sm overflow-hidden"
-                  style={{ borderColor: "#F0E8DF" }}>
-                  <div className="px-4 py-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide"
-                    style={{ backgroundColor: "#6B2D2D", color: "white" }}>
-                    <span>Tabla de posiciones</span>
-                    {ctx.clt_rank && (
-                      <span style={{ color: "#D4A843" }}>CLT #{ctx.clt_rank}</span>
-                    )}
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr style={{ background: "#FAF6F1" }}>
-                          <th className="text-left px-3 py-2 font-medium text-gray-500">#</th>
-                          <th className="text-left px-3 py-2 font-medium text-gray-500">Club</th>
-                          <th className="text-center px-2 py-2 font-medium text-gray-500">PJ</th>
-                          <th className="text-center px-2 py-2 font-medium text-gray-500">PG</th>
-                          <th className="text-center px-2 py-2 font-medium text-gray-500">PE</th>
-                          <th className="text-center px-2 py-2 font-medium text-gray-500">PP</th>
-                          <th className="text-center px-2 py-2 font-medium text-gray-500">GF</th>
-                          <th className="text-center px-2 py-2 font-medium text-gray-500">GC</th>
-                          <th className="text-center px-2 py-2 font-medium text-gray-500">Pts</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {ctx.standings.map((row, i) => {
-                          const isCLT = row.institution.toUpperCase().includes("CARRASCO LAWN TENNIS")
-                          return (
-                            <tr key={i} style={{
-                              background: isCLT ? "#FFF8EC" : i % 2 === 0 ? "white" : "#FDFAF6",
-                              fontWeight: isCLT ? 700 : 400,
-                              color: isCLT ? "#6B2D2D" : "#3A1A1A",
-                              borderTop: "1px solid #F0E8DF",
-                            }}>
-                              <td className="px-3 py-2">{row.rank}</td>
-                              <td className="px-3 py-2">
-                                {row.institution}
-                                {isCLT && <span className="ml-1 text-xs" style={{ color: "#D4A843" }}>★</span>}
-                              </td>
-                              <td className="text-center px-2 py-2">{row.pj}</td>
-                              <td className="text-center px-2 py-2">{row.pg}</td>
-                              <td className="text-center px-2 py-2">{row.pe}</td>
-                              <td className="text-center px-2 py-2">{row.pp}</td>
-                              <td className="text-center px-2 py-2">{row.gf}</td>
-                              <td className="text-center px-2 py-2">{row.gc}</td>
-                              <td className="text-center px-2 py-2 font-bold">{row.points}</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      {/* Próximamente */}
+      <div className="mt-8 rounded-xl border p-5" style={{ borderColor: "#D4A843", backgroundColor: "#FDFAF6" }}>
+        <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "#D4A843" }}>Próximamente</p>
+        <h2 className="text-base font-bold mb-3" style={{ color: "#6B2D2D" }}>Más funciones en camino</h2>
+        <ul className="space-y-2 text-sm text-gray-500">
+          <li>Resultados del fin de semana actualizados automáticamente</li>
+          <li>Goleadores de la temporada</li>
+          <li>Tabla de posiciones</li>
+          <li>Y más...</li>
+        </ul>
+      </div>
 
       {played.length === 0 && upcoming.length === 0 && (
         <div className="text-center py-12 text-gray-400">
