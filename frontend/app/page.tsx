@@ -217,7 +217,7 @@ export default function LandingPage() {
             />
             <FeatureCard
               title="Todas las categorias"
-              desc="Desde Plantel Superior hasta Sub 14, pasando por +32, +40 y femenino. Todo en un mismo lugar."
+              desc="Desde Plantel Superior hasta Sub 14, pasando por +32 y +40. Todo en un mismo lugar."
             />
             <FeatureCard
               title="Actualidad"
