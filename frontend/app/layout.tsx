@@ -53,7 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer className="mt-12 border-t py-6" style={{ borderColor: "#D4A843" }}>
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <span className="text-xs text-gray-400">
-              Carrasco Lawn Tennis · Datos: Liga Universitaria de Deportes
+              Carrasco Lawn Tennis
             </span>
             <div className="flex items-center gap-4">
               <a
