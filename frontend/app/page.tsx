@@ -1,453 +1,272 @@
 "use client"
-import { useEffect, useState, useMemo } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import type { Match, MatchDetail, SeasonsData, Filters, AppearanceStat, SeriesLeagueContext } from "@/lib/types"
-import { loadMatches, loadSeasons, loadMatchDetail, loadPlayersStats, loadLeagueContext } from "@/lib/data"
-import StatsBar from "@/components/StatsBar"
-import FiltersPanel from "@/components/Filters"
-import MatchTable from "@/components/MatchTable"
-import MatchModal from "@/components/MatchModal"
-import { ScorersTable, AppearancesTable } from "@/components/RankingTable"
-import type { ScorerWithSeasons } from "@/components/RankingTable"
+import { useEffect, useState, useRef } from "react"
+import Link from "next/link"
+import Image from "next/image"
 
-// ── Índice jugador → set de match_ids ────────────────────────────────────────
-type PlayerIndex = Map<string, Set<string>>
-
-async function buildPlayerIndex(matchIds: string[]): Promise<PlayerIndex> {
-  const idx: PlayerIndex = new Map()
-  await Promise.all(
-    matchIds.map(id =>
-      loadMatchDetail(id).then(detail => {
-        const add = (carne: string) => {
-          if (!carne) return
-          if (!idx.has(carne)) idx.set(carne, new Set())
-          idx.get(carne)!.add(id)
-        }
-        for (const s of detail.starters) add(s.carne)
-        for (const s of detail.subs)     add(s.in_carne)
-        for (const s of detail.subs)     add(s.out_carne)
-      }).catch(() => {})
-    )
-  )
-  return idx
+/* ── Stats from data ────────────────────────────────────────────────────────── */
+interface LandingStats {
+  matches: number
+  seasons: number
+  players: number
+  categories: number
 }
 
-// ── Rankings desde match_ids (con desglose por temporada) ────────────────────
-async function computeRankings(matches: Match[]) {
-  const scorersMap = new Map<string, { name: string; goals: number; bySeason: Map<number, number> }>()
-  const appearMap  = new Map<string, { name: string; starters: number; subs_in: number }>()
+function useStats(): LandingStats {
+  const [stats, setStats] = useState<LandingStats>({ matches: 0, seasons: 0, players: 0, categories: 0 })
 
-  await Promise.all(
-    matches.map(m =>
-      loadMatchDetail(m.id).then(detail => {
-        for (const g of detail.goals) {
-          if (g.own_goal) continue
-          const key = g.carne || g.name
-          const prev = scorersMap.get(key) ?? { name: g.name, goals: 0, bySeason: new Map() }
-          prev.goals += 1
-          prev.bySeason.set(m.year, (prev.bySeason.get(m.year) ?? 0) + 1)
-          scorersMap.set(key, prev)
-        }
-        for (const s of detail.starters) {
-          const key = s.carne || s.name
-          const prev = appearMap.get(key) ?? { name: s.name, starters: 0, subs_in: 0 }
-          appearMap.set(key, { ...prev, name: s.name, starters: prev.starters + 1 })
-        }
-        for (const s of detail.subs) {
-          const key = s.in_carne || s.in_name
-          const prev = appearMap.get(key) ?? { name: s.in_name, starters: 0, subs_in: 0 }
-          appearMap.set(key, { ...prev, name: s.in_name, subs_in: prev.subs_in + 1 })
-        }
-      }).catch(() => {})
-    )
-  )
+  useEffect(() => {
+    Promise.all([
+      fetch("/data/matches.json").then(r => r.json()),
+      fetch("/data/players_stats.json").then(r => r.json()),
+    ]).then(([matches, ps]) => {
+      const seasonSet = new Set<number>()
+      const catSet = new Set<string>()
+      for (const m of matches) {
+        seasonSet.add(m.season)
+        catSet.add(m.tournament)
+      }
+      const playerSet = new Set<string>()
+      for (const p of ps.appearances) playerSet.add(p.carne)
+      for (const p of ps.scorers) playerSet.add(p.carne)
 
-  const scorers: ScorerWithSeasons[] = [...scorersMap.entries()]
-    .map(([carne, v]) => ({
-      carne,
-      name: v.name,
-      goals: v.goals,
-      bySeason: [...v.bySeason.entries()].map(([year, goals]) => ({ year, goals })),
-    }))
-    .sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name))
+      setStats({
+        matches: matches.length,
+        seasons: seasonSet.size,
+        players: playerSet.size,
+        categories: catSet.size,
+      })
+    }).catch(() => {})
+  }, [])
 
-  const appearances: AppearanceStat[] = [...appearMap.entries()]
-    .map(([carne, v]) => ({ carne, name: v.name, starters: v.starters, subs_in: v.subs_in, total: v.starters + v.subs_in }))
-    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
-
-  return { scorers, appearances }
+  return stats
 }
 
-// ── URL ↔ Filters ─────────────────────────────────────────────────────────────
-function filtersFromParams(params: URLSearchParams): Filters {
-  const getArr = (k: string) => params.getAll(k)
-  return {
-    seasons:     getArr("season"),
-    tournaments: getArr("tournament"),
-    series:      getArr("series"),
-    sides:       getArr("side"),
-    results:     getArr("result"),
-    player:      params.get("player") ?? "",
-  }
-}
+/* ── Animated counter ───────────────────────────────────────────────────────── */
+function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: string }) {
+  const [count, setCount] = useState(0)
+  const ref = useRef<HTMLDivElement>(null)
+  const hasAnimated = useRef(false)
 
-function filtersToParams(f: Filters): string {
-  const p = new URLSearchParams()
-  f.seasons.forEach(v     => p.append("season",     v))
-  f.tournaments.forEach(v => p.append("tournament", v))
-  f.series.forEach(v      => p.append("series",     v))
-  f.sides.forEach(v       => p.append("side",       v))
-  f.results.forEach(v     => p.append("result",     v))
-  if (f.player)            p.set("player", f.player)
-  return p.toString()
-}
-
-// ── Componente: Contexto de liga ──────────────────────────────────────────────
-function LeagueContextPanel({ ctxList, filters }: { ctxList: SeriesLeagueContext[]; filters: Filters }) {
-  const CLT = "CARRASCO LAWN TENNIS"
-  const isCLT = (name: string) => name.toUpperCase().includes(CLT)
-
-  if (filters.seasons.length !== 1) {
-    return (
-      <div className="rounded-lg border p-6 text-center text-sm text-gray-500"
-           style={{ borderColor: "#F0E8DF", background: "#FDFAF6" }}>
-        Seleccioná una <strong>temporada</strong> para ver el contexto de la liga.
-      </div>
+  useEffect(() => {
+    if (!ref.current || target === 0) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasAnimated.current) {
+          hasAnimated.current = true
+          const duration = 2000
+          const steps = 60
+          const increment = target / steps
+          let current = 0
+          const interval = setInterval(() => {
+            current += increment
+            if (current >= target) {
+              setCount(target)
+              clearInterval(interval)
+            } else {
+              setCount(Math.floor(current))
+            }
+          }, duration / steps)
+        }
+      },
+      { threshold: 0.3 }
     )
-  }
-
-  if (ctxList.length === 0) {
-    return (
-      <div className="rounded-lg border p-6 text-center text-sm text-gray-500"
-           style={{ borderColor: "#F0E8DF", background: "#FDFAF6" }}>
-        No hay datos de liga disponibles para esta temporada.
-      </div>
-    )
-  }
+    observer.observe(ref.current)
+    return () => observer.disconnect()
+  }, [target])
 
   return (
-    <div className="space-y-10">
-      {ctxList.map((ctx, ctxIdx) => (
-        <div key={ctxIdx} className="space-y-6">
-          {/* Tabla de posiciones */}
-          <div>
-            <h3 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: "#6B2D2D" }}>
-              Tabla de posiciones
-              {ctx.clt_rank && (
-                <span className="text-xs font-normal px-2 py-0.5 rounded-full"
-                  style={{ background: "#FFF8EC", color: "#D4A843", border: "1px solid #D4A843" }}>
-                  CLT #{ctx.clt_rank}
-                </span>
-              )}
-            </h3>
-            <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "#F0E8DF" }}>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr style={{ background: "#6B2D2D", color: "white" }}>
-                    <th className="text-left px-3 py-2 font-medium">#</th>
-                    <th className="text-left px-3 py-2 font-medium">Club</th>
-                    <th className="text-center px-2 py-2 font-medium">PJ</th>
-                    <th className="text-center px-2 py-2 font-medium">PG</th>
-                    <th className="text-center px-2 py-2 font-medium">PE</th>
-                    <th className="text-center px-2 py-2 font-medium">PP</th>
-                    <th className="text-center px-2 py-2 font-medium">GF</th>
-                    <th className="text-center px-2 py-2 font-medium">GC</th>
-                    <th className="text-center px-2 py-2 font-medium">Pts</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ctx.standings.map((row, i) => {
-                    const clt = isCLT(row.institution)
-                    return (
-                      <tr key={i}
-                          style={{
-                            background: clt ? "#FFF8EC" : i % 2 === 0 ? "white" : "#FDFAF6",
-                            fontWeight: clt ? 700 : 400,
-                            color: clt ? "#6B2D2D" : "#3A1A1A",
-                          }}>
-                        <td className="px-3 py-2">{row.rank}</td>
-                        <td className="px-3 py-2">
-                          {row.institution}
-                          {clt && <span className="ml-1 text-xs" style={{ color: "#D4A843" }}>★</span>}
-                        </td>
-                        <td className="text-center px-2 py-2">{row.pj}</td>
-                        <td className="text-center px-2 py-2">{row.pg}</td>
-                        <td className="text-center px-2 py-2">{row.pe}</td>
-                        <td className="text-center px-2 py-2">{row.pp}</td>
-                        <td className="text-center px-2 py-2">{row.gf}</td>
-                        <td className="text-center px-2 py-2">{row.gc}</td>
-                        <td className="text-center px-2 py-2 font-bold">{row.points}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Goleadores de la liga */}
-          {ctx.scorers.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold mb-2" style={{ color: "#6B2D2D" }}>
-                Goleadores de la liga
-              </h3>
-              <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "#F0E8DF" }}>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr style={{ background: "#6B2D2D", color: "white" }}>
-                      <th className="text-left px-3 py-2 font-medium">#</th>
-                      <th className="text-left px-3 py-2 font-medium">Jugador</th>
-                      <th className="text-left px-3 py-2 font-medium">Club</th>
-                      <th className="text-center px-2 py-2 font-medium">Goles</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ctx.scorers.map((row, i) => {
-                      const clt = isCLT(row.institution)
-                      return (
-                        <tr key={i}
-                            style={{
-                              background: clt ? "#FFF8EC" : i % 2 === 0 ? "white" : "#FDFAF6",
-                              fontWeight: clt ? 700 : 400,
-                              color: clt ? "#6B2D2D" : "#3A1A1A",
-                            }}>
-                          <td className="px-3 py-2">{i + 1}</td>
-                          <td className="px-3 py-2">
-                            {row.player}
-                            {clt && <span className="ml-1 text-xs" style={{ color: "#D4A843" }}>★</span>}
-                          </td>
-                          <td className="px-3 py-2">{row.institution}</td>
-                          <td className="text-center px-2 py-2 font-bold">{row.goals}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Valla menos vencida */}
-          {ctx.goalkeepers.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold mb-2" style={{ color: "#6B2D2D" }}>
-                Valla menos vencida
-              </h3>
-              <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "#F0E8DF" }}>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr style={{ background: "#6B2D2D", color: "white" }}>
-                      <th className="text-left px-3 py-2 font-medium">#</th>
-                      <th className="text-left px-3 py-2 font-medium">Arquero</th>
-                      <th className="text-left px-3 py-2 font-medium">Club</th>
-                      <th className="text-center px-2 py-2 font-medium">GR</th>
-                      <th className="text-center px-2 py-2 font-medium">PJ</th>
-                      <th className="text-center px-2 py-2 font-medium">GR/PJ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ctx.goalkeepers.map((row, i) => {
-                      const clt = isCLT(row.institution)
-                      return (
-                        <tr key={i}
-                            style={{
-                              background: clt ? "#FFF8EC" : i % 2 === 0 ? "white" : "#FDFAF6",
-                              fontWeight: clt ? 700 : 400,
-                              color: clt ? "#6B2D2D" : "#3A1A1A",
-                            }}>
-                          <td className="px-3 py-2">{i + 1}</td>
-                          <td className="px-3 py-2">
-                            {row.player}
-                            {clt && <span className="ml-1 text-xs" style={{ color: "#D4A843" }}>★</span>}
-                          </td>
-                          <td className="px-3 py-2">{row.institution}</td>
-                          <td className="text-center px-2 py-2">{row.gr}</td>
-                          <td className="text-center px-2 py-2">{row.matches}</td>
-                          <td className="text-center px-2 py-2 font-bold">{row.ppp?.toFixed(2)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
+    <div ref={ref} className="font-playfair text-4xl sm:text-5xl md:text-6xl font-black" style={{ color: "#D4A843" }}>
+      {count.toLocaleString("es-UY")}{suffix}
     </div>
   )
 }
 
-// ── Componente principal ──────────────────────────────────────────────────────
-export default function HistoriaPage() {
-  const router       = useRouter()
-  const searchParams = useSearchParams()
+/* ── Feature card ───────────────────────────────────────────────────────────── */
+function FeatureCard({ emoji, title, desc }: { emoji: string; title: string; desc: string }) {
+  return (
+    <div className="group bg-white rounded-xl p-6 border transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+      style={{ borderColor: "#F0E8DF" }}>
+      <div className="flex items-start gap-4">
+        <div className="w-1 self-stretch rounded-full transition-colors duration-300 bg-transparent group-hover:bg-[#D4A843]" />
+        <div>
+          <span className="text-2xl">{emoji}</span>
+          <h3 className="font-playfair text-lg font-bold mt-2" style={{ color: "#3A1A1A" }}>{title}</h3>
+          <p className="text-sm text-gray-600 mt-1 leading-relaxed">{desc}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-  const [matches,     setMatches]     = useState<Match[]>([])
-  const [seasonsData, setSeasonsData] = useState<SeasonsData | null>(null)
-  const [players,     setPlayers]     = useState<AppearanceStat[]>([])
-  const [playerIdx,   setPlayerIdx]   = useState<PlayerIndex>(new Map())
-  const [loading,     setLoading]     = useState(true)
-
-  const [tab,         setTab]         = useState<"partidos" | "goleadores" | "presencias" | "liga">("partidos")
-  const [scorers,     setScorers]     = useState<ScorerWithSeasons[]>([])
-  const [appearances, setAppearances] = useState<AppearanceStat[]>([])
-  const [rankLoading, setRankLoading] = useState(false)
-  const [leagueCtxList, setLeagueCtxList] = useState<SeriesLeagueContext[]>([])
-  const [modal, setModal] = useState<{ match: Match; detail: MatchDetail } | null>(null)
-
-  function openMatch(m: Match) {
-    loadMatchDetail(m.id).then(detail => setModal({ match: m, detail }))
-  }
-
-  const filters = useMemo(() => filtersFromParams(searchParams), [searchParams])
-
-  const setFilters = (f: Filters) => {
-    const qs = filtersToParams(f)
-    router.replace(qs ? `/?${qs}` : "/", { scroll: false })
-  }
-
-  // Cargar league_context una sola vez
-  const [leagueData, setLeagueData] = useState<Record<string, SeriesLeagueContext[]> | null>(null)
+/* ── Landing page ───────────────────────────────────────────────────────────── */
+export default function LandingPage() {
+  const stats = useStats()
+  const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    Promise.all([loadMatches(), loadSeasons(), loadPlayersStats()])
-      .then(([m, s, ps]) => {
-        setMatches(m)
-        setSeasonsData(s)
-        setPlayers(ps.appearances)
-        buildPlayerIndex(m.map(x => x.id)).then(setPlayerIdx)
-      })
-      .finally(() => setLoading(false))
-    loadLeagueContext().then(setLeagueData).catch(() => {})
+    const t = setTimeout(() => setVisible(true), 100)
+    return () => clearTimeout(t)
   }, [])
 
-  const filteredByMeta = useMemo(() => {
-    return matches.filter(m => {
-      if (filters.seasons.length     && !filters.seasons.includes(String(m.year)))         return false
-      if (filters.tournaments.length && !filters.tournaments.includes(m.tournament))       return false
-      if (filters.series.length      && !filters.series.includes(m.series))                return false
-      if (filters.sides.length       && !filters.sides.includes(m.clt_side))              return false
-      if (filters.results.length     && !filters.results.includes(m.result ?? ""))        return false
-      return true
-    })
-  }, [matches, filters])
-
-  const filtered = useMemo(() => {
-    if (!filters.player) return filteredByMeta
-    const matchSet = playerIdx.get(filters.player)
-    if (!matchSet) return []
-    return filteredByMeta.filter(m => matchSet.has(m.id))
-  }, [filteredByMeta, filters.player, playerIdx])
-
-  // Resolver contexto de liga para la(s) temporada(s) seleccionadas
-  useEffect(() => {
-    if (!leagueData) return
-    const { seasons } = filters
-    if (seasons.length === 1) {
-      // seasons guarda el año (ej "2025"), hay que convertir a season number (año - 1913)
-      const seasonNum = String(parseInt(seasons[0]) - 1913)
-      setLeagueCtxList(leagueData[seasonNum] ?? [])
-    } else {
-      setLeagueCtxList([])
-    }
-  }, [filters, leagueData])
-
-  useEffect(() => {
-    if (tab === "partidos") return
-    setRankLoading(true)
-    computeRankings(filtered)
-      .then(({ scorers, appearances }) => {
-        setScorers(scorers)
-        setAppearances(appearances)
-      })
-      .finally(() => setRankLoading(false))
-  }, [tab, filtered])
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-40 text-gray-400">Cargando datos...</div>
-  }
-
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: "#6B2D2D" }}>Historia</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Todos los partidos de CLT en la Liga Universitaria de Deportes
-        </p>
-      </div>
+    <div className="landing-page">
+      {/* ═══════════════════════════════════════════════════════════════════════
+          HERO
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden"
+        style={{ backgroundColor: "#2A1010" }}>
 
-      <StatsBar matches={filtered} />
+        {/* Stripe texture */}
+        <div className="absolute inset-0 landing-stripes" />
 
-      <div className="clt-stripe-hr mb-4" />
+        {/* Grain overlay */}
+        <div className="absolute inset-0 landing-grain" />
 
-      {seasonsData && (
-        <FiltersPanel
-          data={seasonsData}
-          filters={filters}
-          players={players}
-          onChange={setFilters}
-        />
-      )}
-
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b" style={{ borderColor: "#F0E8DF" }}>
-        {(["partidos", "goleadores", "presencias", "liga"] as const).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className="px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px"
-            style={{
-              borderColor: tab === t ? "#6B2D2D" : "transparent",
-              color: tab === t ? "#6B2D2D" : "#6b7280",
-            }}
-          >
-            {t === "partidos"
-              ? `Partidos (${filtered.length})`
-              : t === "goleadores"
-              ? "Goleadores"
-              : t === "presencias"
-              ? "Más presencias"
-              : <span className="flex items-center gap-1.5">
-                  Liga
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "#D4A843", color: "#3A1A1A" }}>BETA</span>
-                </span>}
-          </button>
-        ))}
-      </div>
-
-      {tab === "partidos" && <MatchTable matches={filtered} onOpen={openMatch} />}
-
-      {tab === "goleadores" && (
-        rankLoading
-          ? <div className="text-center py-8 text-gray-400 text-sm">Calculando...</div>
-          : <div className="max-w-lg"><ScorersTable scorers={scorers} /></div>
-      )}
-
-      {tab === "presencias" && (
-        rankLoading
-          ? <div className="text-center py-8 text-gray-400 text-sm">Calculando...</div>
-          : <div className="max-w-lg"><AppearancesTable appearances={appearances} /></div>
-      )}
-
-      {tab === "liga" && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: "#FFF8EC", border: "1px solid #D4A843", color: "#9a7a2e" }}>
-            <span className="font-bold px-1.5 py-0.5 rounded-full text-[10px]" style={{ backgroundColor: "#D4A843", color: "#3A1A1A" }}>BETA</span>
-            <span>Función en prueba — por ahora solo disponible para la temporada <strong>2025</strong>. Los datos pueden estar incompletos.</span>
+        {/* Content */}
+        <div className="relative z-10 text-center px-6 max-w-3xl mx-auto">
+          {/* Badge */}
+          <div className={`transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+            <span className="inline-block text-[10px] sm:text-xs tracking-[0.3em] uppercase px-4 py-1.5 rounded-full border"
+              style={{ color: "#D4A843", borderColor: "#D4A84366" }}>
+              Nueva plataforma &middot; 2026
+            </span>
           </div>
-          <LeagueContextPanel ctxList={leagueCtxList} filters={filters} />
-        </div>
-      )}
 
-      {modal && (
-        <MatchModal
-          match={modal.match}
-          detail={modal.detail}
-          allMatches={filtered}
-          onClose={() => setModal(null)}
-        />
-      )}
+          {/* Club icon */}
+          <div className={`mt-8 transition-all duration-700 delay-150 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+            <Image
+              src="/icon.jpg"
+              alt="CLT"
+              width={80}
+              height={80}
+              className="rounded-full border-2 mx-auto"
+              style={{ borderColor: "#D4A843" }}
+            />
+          </div>
+
+          {/* Title */}
+          <h1 className={`font-playfair text-4xl sm:text-5xl md:text-7xl font-black mt-6 tracking-tight transition-all duration-700 delay-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+            style={{ color: "#FFFFFF" }}>
+            CARRASCO<br />LAWN TENNIS
+          </h1>
+
+          {/* Subtitle */}
+          <p className={`font-playfair text-lg sm:text-xl md:text-2xl italic mt-4 transition-all duration-700 delay-500 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+            style={{ color: "#D4A843" }}>
+            Toda la historia del futbol, en un solo lugar
+          </p>
+
+          {/* Description */}
+          <p className={`text-sm sm:text-base mt-6 leading-relaxed max-w-xl mx-auto transition-all duration-700 delay-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+            style={{ color: "#FFFFFF99" }}>
+            Por primera vez, todos los partidos, todos los goles, todos los jugadores del futbol de CLT
+            en la Liga Universitaria &mdash; desde los primeros registros hasta el ultimo fin de semana.
+          </p>
+
+          {/* CTA */}
+          <div className={`mt-10 transition-all duration-700 delay-900 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+            <Link
+              href="/historia"
+              className="inline-block px-8 py-3 rounded-lg text-sm sm:text-base font-bold tracking-wide transition-all duration-300 hover:scale-105 hover:shadow-xl"
+              style={{ backgroundColor: "#D4A843", color: "#2A1010" }}
+            >
+              Explorar la historia
+            </Link>
+          </div>
+        </div>
+
+        {/* Scroll hint */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D4A84366" strokeWidth="2">
+            <path d="M12 5v14M5 12l7 7 7-7" />
+          </svg>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          STATS
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <section className="py-16 sm:py-20" style={{ backgroundColor: "#6B2D2D" }}>
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            <div>
+              <AnimatedNumber target={stats.matches} />
+              <div className="text-xs sm:text-sm uppercase tracking-widest mt-2" style={{ color: "#FFFFFF99" }}>Partidos</div>
+            </div>
+            <div>
+              <AnimatedNumber target={stats.seasons} />
+              <div className="text-xs sm:text-sm uppercase tracking-widest mt-2" style={{ color: "#FFFFFF99" }}>Temporadas</div>
+            </div>
+            <div>
+              <AnimatedNumber target={stats.players} suffix="+" />
+              <div className="text-xs sm:text-sm uppercase tracking-widest mt-2" style={{ color: "#FFFFFF99" }}>Jugadores</div>
+            </div>
+            <div>
+              <AnimatedNumber target={stats.categories} />
+              <div className="text-xs sm:text-sm uppercase tracking-widest mt-2" style={{ color: "#FFFFFF99" }}>Categorias</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          FEATURES
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <section className="py-16 sm:py-20" style={{ backgroundColor: "#FAF6F1" }}>
+        <div className="max-w-4xl mx-auto px-6">
+          <h2 className="font-playfair text-2xl sm:text-3xl font-bold text-center mb-12" style={{ color: "#3A1A1A" }}>
+            ¿Que vas a encontrar?
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <FeatureCard
+              emoji="📊"
+              title="Todos los resultados"
+              desc="Cada partido, cada gol, cada fecha. La historia completa del futbol de CLT en la Liga Universitaria."
+            />
+            <FeatureCard
+              emoji="👤"
+              title="Fichas de jugadores"
+              desc="Busca cualquier jugador y encontra sus estadisticas: partidos, goles, tarjetas y mas."
+            />
+            <FeatureCard
+              emoji="🏆"
+              title="Todas las categorias"
+              desc="Desde Plantel Superior hasta Sub 14, pasando por +32, +40 y femenino. Todo en un mismo lugar."
+            />
+            <FeatureCard
+              emoji="📅"
+              title="Actualidad en vivo"
+              desc="Los resultados del ultimo fin de semana, actualizados automaticamente cada semana."
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          CTA FINAL
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <section className="relative py-20 sm:py-24 overflow-hidden" style={{ backgroundColor: "#2A1010" }}>
+        <div className="absolute inset-0 landing-stripes" />
+        <div className="absolute inset-0 landing-grain" />
+
+        <div className="relative z-10 text-center px-6 max-w-2xl mx-auto">
+          <h2 className="font-playfair text-2xl sm:text-3xl md:text-4xl font-bold" style={{ color: "#FFFFFF" }}>
+            La historia se escribe cada fin de semana
+          </h2>
+          <p className="text-sm sm:text-base mt-4" style={{ color: "#FFFFFF99" }}>
+            Resultados actualizados automaticamente despues de cada fecha.
+          </p>
+          <div className="mt-10">
+            <Link
+              href="/actualidad"
+              className="landing-cta-pulse inline-block px-8 py-3 rounded-lg text-sm sm:text-base font-bold tracking-wide transition-all duration-300 hover:scale-105"
+              style={{ backgroundColor: "#D4A843", color: "#2A1010" }}
+            >
+              Ver resultados recientes
+            </Link>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }

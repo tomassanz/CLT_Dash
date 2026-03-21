@@ -1,11 +1,12 @@
 import type { Metadata } from "next"
-import { Geist } from "next/font/google"
+import { Geist, Playfair_Display } from "next/font/google"
 import Link from "next/link"
 import Image from "next/image"
 import { Suspense } from "react"
 import "./globals.css"
 
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
+const playfair = Playfair_Display({ variable: "--font-playfair", subsets: ["latin"], weight: ["400", "700", "900"] })
 
 export const metadata: Metadata = {
   title: "CLT Fútbol — Historia",
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body className={`${geist.variable} antialiased`}>
+      <body className={`${geist.variable} ${playfair.variable} antialiased`}>
         {/* ── Header ── */}
         <header style={{ backgroundColor: "#6B2D2D" }} className="text-white shadow-md">
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -47,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
             <nav className="flex items-center gap-1">
               <NavLink href="/actualidad">Actualidad</NavLink>
-              <NavLink href="/">Historia</NavLink>
+              <NavLink href="/historia">Historia</NavLink>
               <NavLink href="/jugador">Jugadores</NavLink>
             </nav>
           </div>
@@ -57,7 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </header>
 
         {/* ── Content ── */}
-        <main className="max-w-7xl mx-auto px-4 py-6">
+        <main>
           <Suspense fallback={<div className="flex items-center justify-center h-40 text-gray-400">Cargando...</div>}>
             {children}
           </Suspense>

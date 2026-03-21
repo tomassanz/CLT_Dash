@@ -139,7 +139,7 @@ export default function JugadorPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto px-4 py-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold" style={{ color: "#6B2D2D" }}>Jugadores</h1>
         <p className="text-sm text-gray-500 mt-1">Buscá un jugador para ver su ficha completa</p>

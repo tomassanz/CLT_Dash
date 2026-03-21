@@ -34,7 +34,7 @@ export default function PartidoPage() {
   const ownGoals = detail.goals.filter(g => g.own_goal)
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto px-4 py-6">
       {/* Back */}
       <button
         onClick={() => router.back()}

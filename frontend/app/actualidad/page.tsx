@@ -83,7 +83,7 @@ export default function ActualidadPage() {
   const latestRoundKeys = [...roundMap.keys()].slice(0, 6)
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto px-4 py-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold" style={{ color: "#6B2D2D" }}>Actualidad</h1>
         <p className="text-sm text-gray-500 mt-1">
