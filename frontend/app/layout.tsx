@@ -9,13 +9,11 @@ const barlow = Barlow({ variable: "--font-barlow", subsets: ["latin"], weight: [
 const barlowCond = Barlow_Condensed({ variable: "--font-barlow-cond", subsets: ["latin"], weight: ["700", "800", "900"] })
 
 export const metadata: Metadata = {
-  title: "CLT Fútbol — Historia",
+  title: "CLT Fútbol",
   description: "Dashboard histórico de fútbol del Carrasco Lawn Tennis Club en la Liga Universitaria",
   icons: {
-    icon: [
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-    ],
+    icon: "/favicon-32x32.png",
+    shortcut: "/favicon-32x32.png",
     apple: "/apple-touch-icon.png",
   },
 }
