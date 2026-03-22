@@ -1,8 +1,8 @@
 "use client"
 import { useEffect, useState, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import type { Match, MatchDetail, AppearanceStat } from "@/lib/types"
-import { loadMatches, loadMatchDetail, loadPlayersStats, rival, formatDate, toProperCase } from "@/lib/data"
+import type { Match, MatchDetail, AppearanceStat, PlayerIndex } from "@/lib/types"
+import { loadMatches, loadMatchDetail, loadPlayersStats, loadPlayerIndex, rival, formatDate, toProperCase } from "@/lib/data"
 import ResultBadge from "@/components/ResultBadge"
 import MatchModal from "@/components/MatchModal"
 import { Search, Home, Plane } from "lucide-react"
@@ -27,6 +27,7 @@ export default function JugadorPage() {
 
   const [allMatches, setAllMatches] = useState<Match[]>([])
   const [players, setPlayers] = useState<AppearanceStat[]>([])
+  const [playerIdx, setPlayerIdx] = useState<PlayerIndex>({})
   const [query, setQuery] = useState("")
   const [profile, setProfile] = useState<PlayerProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -38,10 +39,11 @@ export default function JugadorPage() {
   const selectedCarne = searchParams.get("carne")
 
   useEffect(() => {
-    Promise.all([loadMatches(), loadPlayersStats()])
-      .then(([m, ps]) => {
+    Promise.all([loadMatches(), loadPlayersStats(), loadPlayerIndex()])
+      .then(([m, ps, pidx]) => {
         setAllMatches(m)
         setPlayers(ps.appearances)
+        setPlayerIdx(pidx)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -70,8 +72,12 @@ export default function JugadorPage() {
     const player = players.find(p => p.carne === selectedCarne)
     if (!player) { setProfileLoading(false); return }
 
+    // Only load match details for matches this player participated in
+    const playerMatchIds = new Set(playerIdx[selectedCarne] ?? [])
+    const playerMatches = allMatches.filter(m => playerMatchIds.has(m.id))
+
     Promise.all(
-      allMatches.map(m =>
+      playerMatches.map(m =>
         loadMatchDetail(m.id).then(detail => ({ match: m, detail })).catch(() => null)
       )
     ).then(results => {
@@ -119,7 +125,7 @@ export default function JugadorPage() {
       })
       setProfileLoading(false)
     })
-  }, [selectedCarne, allMatches, players])
+  }, [selectedCarne, allMatches, players, playerIdx])
 
   function selectPlayer(carne: string, name: string) {
     setQuery(toProperCase(name))

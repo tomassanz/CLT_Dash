@@ -77,6 +77,7 @@ export interface ScorerStat {
   carne: string
   name: string
   goals: number
+  bySeason: { year: number; goals: number }[]
 }
 
 export interface AppearanceStat {
@@ -145,3 +146,6 @@ export interface SeriesLeagueContext {
 
 // league_context.json: { [season_number]: SeriesLeagueContext[] }
 export type LeagueContext = Record<string, SeriesLeagueContext[]>
+
+// player_index.json: { carne: match_id[] }
+export type PlayerIndex = Record<string, string[]>

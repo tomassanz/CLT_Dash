@@ -1,9 +1,9 @@
-import type { Match, SeasonsData, MatchDetail, PlayersStats, LastUpdated, LeagueContext } from "./types"
+import type { Match, SeasonsData, MatchDetail, PlayersStats, LastUpdated, LeagueContext, PlayerIndex } from "./types"
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? ""
 
 async function loadJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { cache: "no-store" })
+  const res = await fetch(`${BASE}${path}`)
   if (!res.ok) throw new Error(`Failed to load ${path}: ${res.status}`)
   return res.json() as Promise<T>
 }
@@ -30,6 +30,10 @@ export function loadLastUpdated(): Promise<LastUpdated> {
 
 export function loadLeagueContext(): Promise<LeagueContext> {
   return loadJSON<LeagueContext>("/data/league_context.json")
+}
+
+export function loadPlayerIndex(): Promise<PlayerIndex> {
+  return loadJSON<PlayerIndex>("/data/player_index.json")
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

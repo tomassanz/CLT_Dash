@@ -184,23 +184,62 @@ def gen_match_details(conn):
 # players_stats.json — rankings
 # ──────────────────────────────────────────────────────────────────────────────
 
+def gen_player_index(conn):
+    """Genera player_index.json — mapeo carne → [match_ids] para evitar cargar 2000+ archivos en el frontend."""
+    # Titulares
+    starters = conn.execute("""
+        SELECT player_carne, match_id FROM match_starters WHERE player_carne != ''
+    """).fetchall()
+
+    # Suplentes que entran
+    subs_in = conn.execute("""
+        SELECT player_in_carne, match_id FROM match_subs WHERE player_in_carne != ''
+    """).fetchall()
+
+    # Suplentes que salen (también participaron)
+    subs_out = conn.execute("""
+        SELECT player_out_carne, match_id FROM match_subs WHERE player_out_carne != ''
+    """).fetchall()
+
+    idx = {}
+    for r in starters:
+        idx.setdefault(r["player_carne"], set()).add(r["match_id"])
+    for r in subs_in:
+        idx.setdefault(r["player_in_carne"], set()).add(r["match_id"])
+    for r in subs_out:
+        idx.setdefault(r["player_out_carne"], set()).add(r["match_id"])
+
+    # Convertir sets a listas ordenadas para JSON
+    data = {carne: sorted(match_ids) for carne, match_ids in idx.items()}
+
+    write_json(OUT_DIR / "player_index.json", data,
+               f"player_index.json ({len(data)} jugadores)")
+
 def gen_players_stats(conn):
-    # Goleadores (excluye goles en contra)
+    # Goleadores con desglose por temporada (excluye goles en contra)
     scorers_raw = conn.execute("""
         SELECT
             g.player_carne as carne,
             g.player_name  as name,
+            m.season as season,
             COUNT(*) as goals
         FROM match_goals g
+        JOIN matches m ON m.id = g.match_id
         WHERE g.is_own_goal = 0
-        GROUP BY g.player_carne, g.player_name
-        ORDER BY goals DESC, name
+        GROUP BY g.player_carne, g.player_name, m.season
+        ORDER BY g.player_carne, m.season
     """).fetchall()
 
-    scorers = [
-        {"carne": r["carne"], "name": r["name"], "goals": r["goals"]}
-        for r in scorers_raw
-    ]
+    # Agrupar por jugador
+    scorers_map = {}
+    for r in scorers_raw:
+        key = r["carne"]
+        if key not in scorers_map:
+            scorers_map[key] = {"carne": r["carne"], "name": r["name"], "goals": 0, "bySeason": []}
+        scorers_map[key]["goals"] += r["goals"]
+        scorers_map[key]["bySeason"].append({"year": r["season"] + 1913, "goals": r["goals"]})
+
+    scorers = sorted(scorers_map.values(), key=lambda x: (-x["goals"], x["name"]))
 
     # Apariciones (titulares + entradas como cambio)
     appearances_raw = conn.execute("""
@@ -354,6 +393,7 @@ def main():
     gen_matches(conn)
     gen_seasons(conn)
     gen_match_details(conn)
+    gen_player_index(conn)
     gen_players_stats(conn)
     gen_league_context(conn)
     gen_last_updated(conn)

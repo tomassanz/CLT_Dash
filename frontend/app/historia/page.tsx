@@ -1,82 +1,14 @@
 "use client"
 import { useEffect, useState, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import type { Match, MatchDetail, SeasonsData, Filters, AppearanceStat, SeriesLeagueContext } from "@/lib/types"
-import { loadMatches, loadSeasons, loadMatchDetail, loadPlayersStats, loadLeagueContext } from "@/lib/data"
+import type { Match, MatchDetail, SeasonsData, Filters, AppearanceStat, ScorerStat, SeriesLeagueContext, PlayerIndex } from "@/lib/types"
+import { loadMatches, loadSeasons, loadMatchDetail, loadPlayersStats, loadPlayerIndex, loadLeagueContext } from "@/lib/data"
 import StatsBar from "@/components/StatsBar"
 import FiltersPanel from "@/components/Filters"
 import MatchTable from "@/components/MatchTable"
 import MatchModal from "@/components/MatchModal"
 import { ScorersTable, AppearancesTable } from "@/components/RankingTable"
 import type { ScorerWithSeasons } from "@/components/RankingTable"
-
-// ── Índice jugador → set de match_ids ────────────────────────────────────────
-type PlayerIndex = Map<string, Set<string>>
-
-async function buildPlayerIndex(matchIds: string[]): Promise<PlayerIndex> {
-  const idx: PlayerIndex = new Map()
-  await Promise.all(
-    matchIds.map(id =>
-      loadMatchDetail(id).then(detail => {
-        const add = (carne: string) => {
-          if (!carne) return
-          if (!idx.has(carne)) idx.set(carne, new Set())
-          idx.get(carne)!.add(id)
-        }
-        for (const s of detail.starters) add(s.carne)
-        for (const s of detail.subs)     add(s.in_carne)
-        for (const s of detail.subs)     add(s.out_carne)
-      }).catch(() => {})
-    )
-  )
-  return idx
-}
-
-// ── Rankings desde match_ids (con desglose por temporada) ────────────────────
-async function computeRankings(matches: Match[]) {
-  const scorersMap = new Map<string, { name: string; goals: number; bySeason: Map<number, number> }>()
-  const appearMap  = new Map<string, { name: string; starters: number; subs_in: number }>()
-
-  await Promise.all(
-    matches.map(m =>
-      loadMatchDetail(m.id).then(detail => {
-        for (const g of detail.goals) {
-          if (g.own_goal) continue
-          const key = g.carne || g.name
-          const prev = scorersMap.get(key) ?? { name: g.name, goals: 0, bySeason: new Map() }
-          prev.goals += 1
-          prev.bySeason.set(m.year, (prev.bySeason.get(m.year) ?? 0) + 1)
-          scorersMap.set(key, prev)
-        }
-        for (const s of detail.starters) {
-          const key = s.carne || s.name
-          const prev = appearMap.get(key) ?? { name: s.name, starters: 0, subs_in: 0 }
-          appearMap.set(key, { ...prev, name: s.name, starters: prev.starters + 1 })
-        }
-        for (const s of detail.subs) {
-          const key = s.in_carne || s.in_name
-          const prev = appearMap.get(key) ?? { name: s.in_name, starters: 0, subs_in: 0 }
-          appearMap.set(key, { ...prev, name: s.in_name, subs_in: prev.subs_in + 1 })
-        }
-      }).catch(() => {})
-    )
-  )
-
-  const scorers: ScorerWithSeasons[] = [...scorersMap.entries()]
-    .map(([carne, v]) => ({
-      carne,
-      name: v.name,
-      goals: v.goals,
-      bySeason: [...v.bySeason.entries()].map(([year, goals]) => ({ year, goals })),
-    }))
-    .sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name))
-
-  const appearances: AppearanceStat[] = [...appearMap.entries()]
-    .map(([carne, v]) => ({ carne, name: v.name, starters: v.starters, subs_in: v.subs_in, total: v.starters + v.subs_in }))
-    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
-
-  return { scorers, appearances }
-}
 
 // ── URL ↔ Filters ─────────────────────────────────────────────────────────────
 function filtersFromParams(params: URLSearchParams): Filters {
@@ -286,13 +218,12 @@ export default function HistoriaPage() {
   const [matches,     setMatches]     = useState<Match[]>([])
   const [seasonsData, setSeasonsData] = useState<SeasonsData | null>(null)
   const [players,     setPlayers]     = useState<AppearanceStat[]>([])
-  const [playerIdx,   setPlayerIdx]   = useState<PlayerIndex>(new Map())
+  const [playerIdx,   setPlayerIdx]   = useState<PlayerIndex>({})
+  const [allScorers,  setAllScorers]  = useState<ScorerStat[]>([])
+  const [allAppear,   setAllAppear]   = useState<AppearanceStat[]>([])
   const [loading,     setLoading]     = useState(true)
 
   const [tab,         setTab]         = useState<"partidos" | "goleadores" | "presencias">("partidos")
-  const [scorers,     setScorers]     = useState<ScorerWithSeasons[]>([])
-  const [appearances, setAppearances] = useState<AppearanceStat[]>([])
-  const [rankLoading, setRankLoading] = useState(false)
   const [leagueCtxList, setLeagueCtxList] = useState<SeriesLeagueContext[]>([])
   const [modal, setModal] = useState<{ match: Match; detail: MatchDetail } | null>(null)
 
@@ -311,12 +242,14 @@ export default function HistoriaPage() {
   const [leagueData, setLeagueData] = useState<Record<string, SeriesLeagueContext[]> | null>(null)
 
   useEffect(() => {
-    Promise.all([loadMatches(), loadSeasons(), loadPlayersStats()])
-      .then(([m, s, ps]) => {
+    Promise.all([loadMatches(), loadSeasons(), loadPlayersStats(), loadPlayerIndex()])
+      .then(([m, s, ps, pidx]) => {
         setMatches(m)
         setSeasonsData(s)
         setPlayers(ps.appearances)
-        buildPlayerIndex(m.map(x => x.id)).then(setPlayerIdx)
+        setAllScorers(ps.scorers)
+        setAllAppear(ps.appearances)
+        setPlayerIdx(pidx)
       })
       .finally(() => setLoading(false))
     loadLeagueContext().then(setLeagueData).catch(() => {})
@@ -335,8 +268,9 @@ export default function HistoriaPage() {
 
   const filtered = useMemo(() => {
     if (!filters.player) return filteredByMeta
-    const matchSet = playerIdx.get(filters.player)
-    if (!matchSet) return []
+    const matchIds = playerIdx[filters.player]
+    if (!matchIds) return []
+    const matchSet = new Set(matchIds)
     return filteredByMeta.filter(m => matchSet.has(m.id))
   }, [filteredByMeta, filters.player, playerIdx])
 
@@ -353,16 +287,45 @@ export default function HistoriaPage() {
     }
   }, [filters, leagueData])
 
-  useEffect(() => {
-    if (tab === "partidos") return
-    setRankLoading(true)
-    computeRankings(filtered)
-      .then(({ scorers, appearances }) => {
-        setScorers(scorers)
-        setAppearances(appearances)
+  // Filtrar rankings según los partidos filtrados
+  const filteredMatchIds = useMemo(() => new Set(filtered.map(m => m.id)), [filtered])
+
+  const scorers: ScorerWithSeasons[] = useMemo(() => {
+    // Si no hay filtros activos, usar todos los scorers
+    const hasFilters = filters.seasons.length || filters.tournaments.length || filters.series.length || filters.sides.length || filters.results.length || filters.player
+    if (!hasFilters) {
+      return allScorers.map(s => ({ ...s }))
+    }
+    // Con filtros: solo incluir jugadores que participaron en los partidos filtrados
+    return allScorers
+      .filter(s => {
+        const matchIds = playerIdx[s.carne]
+        return matchIds?.some(id => filteredMatchIds.has(id))
       })
-      .finally(() => setRankLoading(false))
-  }, [tab, filtered])
+      .map(s => {
+        // Filtrar bySeason si hay filtro de temporada
+        if (filters.seasons.length) {
+          const yearSet = new Set(filters.seasons.map(Number))
+          const filteredSeasons = s.bySeason.filter(bs => yearSet.has(bs.year))
+          const totalGoals = filteredSeasons.reduce((sum, bs) => sum + bs.goals, 0)
+          return { ...s, goals: totalGoals, bySeason: filteredSeasons }
+        }
+        return { ...s }
+      })
+      .filter(s => s.goals > 0)
+      .sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name))
+  }, [allScorers, playerIdx, filteredMatchIds, filters])
+
+  const appearances: AppearanceStat[] = useMemo(() => {
+    const hasFilters = filters.seasons.length || filters.tournaments.length || filters.series.length || filters.sides.length || filters.results.length || filters.player
+    if (!hasFilters) return allAppear
+    // Solo mostrar jugadores que participaron en partidos filtrados
+    return allAppear
+      .filter(a => {
+        const matchIds = playerIdx[a.carne]
+        return matchIds?.some(id => filteredMatchIds.has(id))
+      })
+  }, [allAppear, playerIdx, filteredMatchIds, filters])
 
   if (loading) {
     return <div className="flex items-center justify-center h-40 text-gray-400">Cargando datos...</div>
@@ -414,15 +377,11 @@ export default function HistoriaPage() {
       {tab === "partidos" && <MatchTable matches={filtered} onOpen={openMatch} />}
 
       {tab === "goleadores" && (
-        rankLoading
-          ? <div className="text-center py-8 text-gray-400 text-sm">Calculando...</div>
-          : <div className="max-w-lg"><ScorersTable scorers={scorers} /></div>
+        <div className="max-w-lg"><ScorersTable scorers={scorers} /></div>
       )}
 
       {tab === "presencias" && (
-        rankLoading
-          ? <div className="text-center py-8 text-gray-400 text-sm">Calculando...</div>
-          : <div className="max-w-lg"><AppearancesTable appearances={appearances} /></div>
+        <div className="max-w-lg"><AppearancesTable appearances={appearances} /></div>
       )}
 
       {modal && (
