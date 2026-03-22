@@ -10,7 +10,12 @@ Dashboard web público que muestra toda la historia de partidos de fútbol del *
 
 ---
 
-## Estado actual del proyecto (al 18/03/2026 — actualizado sesión 2)
+## Estado actual del proyecto (al 22/03/2026 — actualizado sesión 3)
+
+### 📚 Documentación de APIs
+- **[API_MAP.md](API_MAP.md)** — Mapa exhaustivo de ambos sistemas de APIs con ejemplos
+- **[API_QUICK_REFERENCE.md](API_QUICK_REFERENCE.md)** — Cheat sheet rápida para consultas frecuentes
+- **[scraper/api_map.json](scraper/api_map.json)** — Reporte técnico detallado generado automáticamente
 
 ### URLs de producción
 - **Sitio live (Vercel):** https://www.cltfutbol.com.uy — dominio principal, apunta a Vercel
@@ -58,10 +63,24 @@ Cada `git push origin main` dispara **ambos** deploys simultáneamente:
 
 #### Dominio `cltfutbol.com.uy`
 
-Hoy apunta a Vercel. Si se agotan los edge requests de Vercel, se puede redirigir el dominio a GitHub Pages sin tocar código:
-1. En el DNS del dominio, cambiar el CNAME para que apunte a `tomassanz.github.io`
-2. En GitHub repo → Settings → Pages → Custom domain → poner `www.cltfutbol.com.uy`
-3. Listo — el sitio sigue funcionando igual pero servido desde GitHub Pages (gratis, sin límites)
+Registrado en **NIC Uruguay**. Hoy apunta a Vercel con esta configuración DNS:
+
+| Registro | Tipo | Valor actual (Vercel) | TTL |
+|---|---|---|---|
+| `@` | A | `216.198.79.1` | 24 hrs |
+| `www` | CNAME | `3322827bebbe183c.vercel-dns-01...` | 24 hrs |
+
+#### Cambiar dominio a GitHub Pages (plan de emergencia)
+
+Si se agotan los edge requests de Vercel, cambiar el dominio sin tocar código:
+
+1. **En NIC Uruguay** (https://nic.com.uy → login → dominio → Configuración avanzada):
+   - Cambiar registro **A** (`@`): de `216.198.79.1` → **`185.199.108.153`**
+   - Cambiar registro **CNAME** (`www`): de `3322827bebbe...` → **`tomassanz.github.io`**
+2. **En GitHub:** repo → Settings → Pages → Custom domain → escribir `www.cltfutbol.com.uy` → Save
+3. Esperar propagación DNS (~24 hrs por el TTL, pero suele ser más rápido)
+
+Para volver a Vercel, revertir los valores DNS a los originales de la tabla de arriba.
 
 #### Diferencia técnica entre ambos builds
 
