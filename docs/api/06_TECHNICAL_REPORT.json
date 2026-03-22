@@ -1,0 +1,356 @@
+{
+  "timestamp": "2026-03-22 17:19:16",
+  "sample_params": {
+    "season": 112,
+    "sport_old": "FÚTBOL",
+    "sport_new": "F",
+    "match_id": 19
+  },
+  "base_urls": {
+    "detallefechas": {
+      "url": "https://ligauniversitaria.org.uy/detallefechas/api.php",
+      "status": "❌ error",
+      "response": {
+        "type": "error",
+        "error": "JSON decode failed"
+      }
+    },
+    "posiciones": {
+      "url": "https://ligauniversitaria.org.uy/posiciones/api.php",
+      "status": "❌ error",
+      "response": {
+        "type": "error",
+        "error": "JSON decode failed"
+      }
+    },
+    "goleadores": {
+      "url": "https://ligauniversitaria.org.uy/goleadores/api.php",
+      "status": "❌ error",
+      "response": {
+        "type": "error",
+        "error": "JSON decode failed"
+      }
+    },
+    "valla_menos_vencida": {
+      "url": "https://ligauniversitaria.org.uy/valla_menos_vencida/api.php",
+      "status": "❌ error",
+      "response": {
+        "type": "error",
+        "error": "JSON decode failed"
+      }
+    },
+    "resultados": {
+      "url": "https://ligauniversitaria.org.uy/resultados/api.php",
+      "status": "❌ error",
+      "response": {
+        "type": "error",
+        "error": "JSON decode failed"
+      }
+    },
+    "partidos": {
+      "url": "https://ligauniversitaria.org.uy/partidos/api.php",
+      "status": "❌ error",
+      "response": {
+        "type": "error",
+        "error": "JSON decode failed"
+      }
+    }
+  },
+  "sistema_a": {
+    "cargarTorneos": {
+      "type": "array_of_objects",
+      "count": 10,
+      "item_keys": [
+        "nombre"
+      ],
+      "sample_item": {
+        "nombre": "COPA DE CAMPEONES"
+      }
+    },
+    "cargarSeries": {
+      "type": "array_of_objects",
+      "count": 17,
+      "item_keys": [
+        "nombre"
+      ],
+      "sample_item": {
+        "nombre": "COPA DE CAMPEONES 8vos."
+      }
+    },
+    "cargarFechas": {
+      "type": "array_of_objects",
+      "count": 1,
+      "item_keys": [
+        "fecha"
+      ],
+      "sample_item": {
+        "fecha": "1"
+      }
+    },
+    "cargarPartidos": {
+      "type": "array_of_objects",
+      "count": 8,
+      "item_keys": [
+        "Fecha",
+        "Fecha_Hora",
+        "Cancha",
+        "Locatario",
+        "GL",
+        "Visitante",
+        "GV",
+        "ID"
+      ],
+      "sample_item": {
+        "Fecha": "1",
+        "Fecha_Hora": "2025-11-16 09:00:00",
+        "Cancha": "COMPLEJO DEPORTIVO ARRAYANES"
+      }
+    },
+    "detail: Titulares Locatario": {
+      "type": "object",
+      "keys": [
+        "error"
+      ],
+      "sample": {
+        "error": "No se encontraron titulares para el equipo locatario del partido con ID: 19"
+      }
+    },
+    "detail: Titulares Visitante": {
+      "type": "object",
+      "keys": [
+        "error"
+      ],
+      "sample": {
+        "error": "No se encontraron titulares para el equipo locatario del partido con ID: 19"
+      }
+    },
+    "detail: CambiosLocatario": {
+      "type": "object",
+      "keys": [
+        "error"
+      ],
+      "sample": {
+        "error": "No se encontraron cambios para el equipo locatario del partido con ID: 19"
+      }
+    },
+    "detail: CambiosVisitante": {
+      "type": "object",
+      "keys": [
+        "error"
+      ],
+      "sample": {
+        "error": "No se encontraron cambios para el equipo locatario del partido con ID: 19"
+      }
+    },
+    "detail: GolesLocatario": {
+      "type": "object",
+      "keys": [
+        "error"
+      ],
+      "sample": {
+        "error": "No se encontraron goles para el equipo locatario del partido con ID: 19"
+      }
+    },
+    "detail: GolesVisitante": {
+      "type": "object",
+      "keys": [
+        "error"
+      ],
+      "sample": {
+        "error": "No se encontraron goles para el equipo locatario del partido con ID: 19"
+      }
+    },
+    "detail: Amonestados Locatario": {
+      "type": "object",
+      "keys": [
+        "error"
+      ],
+      "sample": {
+        "error": "No se encontraron amonestados para el equipo locatario del partido con ID: 19"
+      }
+    },
+    "detail: Amonestados Visitante": {
+      "type": "object",
+      "keys": [
+        "error"
+      ],
+      "sample": {
+        "error": "No se encontraron amonestados para el equipo visitante del partido con ID: 19"
+      }
+    },
+    "detail: Expulsados Locatario": {
+      "type": "object",
+      "keys": [
+        "error"
+      ],
+      "sample": {
+        "error": "No se encontraron expulsados para el equipo locatario del partido con ID: 19"
+      }
+    },
+    "detail: Expulsados Visitante": {
+      "type": "object",
+      "keys": [
+        "error"
+      ],
+      "sample": {
+        "error": "No se encontraron expulsados para el equipo locatario del partido con ID: 19"
+      }
+    }
+  },
+  "sistema_b": {
+    "posiciones": {
+      "type": "array_of_objects",
+      "count": 8,
+      "item_keys": [
+        "Institucion",
+        "PJ",
+        "PG",
+        "PE",
+        "PP",
+        "GF",
+        "GC",
+        "Puntos"
+      ],
+      "sample_item": {
+        "Institucion": "TENIS EL PINAR",
+        "PJ": "22",
+        "PG": "15"
+      }
+    },
+    "goleadores": {
+      "type": "array_of_objects",
+      "count": 10,
+      "item_keys": [
+        "Jugador",
+        "Institucion",
+        "goles"
+      ],
+      "sample_item": {
+        "Jugador": "JUAN MARTIN OYENARD",
+        "Institucion": "TENIS EL PINAR",
+        "goles": "20"
+      }
+    },
+    "valla_menos_vencida": {
+      "type": "array_of_objects",
+      "count": 10,
+      "item_keys": [
+        "Jugador",
+        "Institución",
+        "GR",
+        "partidos",
+        "ppp"
+      ],
+      "sample_item": {
+        "Jugador": "JOAQUIN BERRO",
+        "Institución": "TENIS EL PINAR",
+        "GR": "0"
+      }
+    },
+    "resultados": {
+      "type": "array_of_objects",
+      "count": 28,
+      "item_keys": [
+        "Fecha",
+        "Fecha_Hora",
+        "Cancha",
+        "Locatario",
+        "GL",
+        "Visitante",
+        "GV",
+        "ID"
+      ],
+      "sample_item": {
+        "Fecha": "1",
+        "Fecha_Hora": "2025-09-14 11:15:00",
+        "Cancha": "TENIS EL PINAR"
+      }
+    },
+    "partidos": {
+      "type": "empty_array"
+    }
+  },
+  "parameter_variants": {
+    "variant_0": {
+      "params": {
+        "action": "cargarTorneos",
+        "temporada": 112
+      },
+      "response": {
+        "type": "empty_array"
+      }
+    },
+    "variant_1": {
+      "params": {
+        "action": "cargarTorneos",
+        "deporte": "FÚTBOL"
+      },
+      "response": {
+        "type": "empty_array"
+      }
+    },
+    "variant_2": {
+      "params": {
+        "deporte": "FÚTBOL"
+      },
+      "response": {
+        "type": "error",
+        "error": "JSON decode failed"
+      }
+    },
+    "variant_3": {
+      "params": {},
+      "response": {
+        "type": "error",
+        "error": "JSON decode failed"
+      }
+    }
+  },
+  "edge_cases": {
+    "temporada_futura": {
+      "params": {
+        "action": "cargarTorneos",
+        "temporada": 200,
+        "deporte": "FÚTBOL"
+      },
+      "response": {
+        "type": "empty_array"
+      }
+    },
+    "temporada_pasada": {
+      "params": {
+        "action": "cargarTorneos",
+        "temporada": 50,
+        "deporte": "FÚTBOL"
+      },
+      "response": {
+        "type": "empty_array"
+      }
+    },
+    "deporte_invalido": {
+      "params": {
+        "action": "cargarTorneos",
+        "temporada": 112,
+        "deporte": "BASQUET"
+      },
+      "response": {
+        "type": "empty_array"
+      }
+    },
+    "match_id_invalido": {
+      "params": {
+        "action": "Titulares Locatario",
+        "id": 999999999
+      },
+      "response": {
+        "type": "object",
+        "keys": [
+          "error"
+        ],
+        "sample": {
+          "error": "No se encontraron titulares para el equipo locatario del partido con ID: 999999999"
+        }
+      }
+    }
+  }
+}

@@ -12,10 +12,23 @@ Dashboard web público que muestra toda la historia de partidos de fútbol del *
 
 ## Estado actual del proyecto (al 22/03/2026 — actualizado sesión 3)
 
-### 📚 Documentación de APIs
-- **[API_MAP.md](API_MAP.md)** — Mapa exhaustivo de ambos sistemas de APIs con ejemplos
-- **[API_QUICK_REFERENCE.md](API_QUICK_REFERENCE.md)** — Cheat sheet rápida para consultas frecuentes
-- **[scraper/api_map.json](scraper/api_map.json)** — Reporte técnico detallado generado automáticamente
+### 📚 Documentación de APIs (NUEVA — Marzo 2026)
+
+**📁 Carpeta completa:** [`docs/api/`](docs/api/)
+
+Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
+
+| # | Documento | Para qué | Lectura |
+|---|-----------|----------|---------|
+| 0️⃣ | **[docs/api/00_INDEX.md](docs/api/00_INDEX.md)** 🎯 | Índice maestro — empieza aquí | 2 min |
+| 1️⃣ | **[docs/api/01_DECISION_TREE.md](docs/api/01_DECISION_TREE.md)** 🌳 | Árbol de decisión (qué sistema) | 3 min |
+| 2️⃣ | **[docs/api/02_MAP.md](docs/api/02_MAP.md)** 📖 | Mapa exhaustivo con ejemplos | 15 min |
+| 3️⃣ | **[docs/api/03_QUICK_REFERENCE.md](docs/api/03_QUICK_REFERENCE.md)** ⚡ | Cheat sheet (guardar bookmark) | 2 min |
+| 4️⃣ | **[docs/api/04_COMPARISON.md](docs/api/04_COMPARISON.md)** ⚖️ | Comparativa Sistema A vs B | 10 min |
+| 5️⃣ | **[docs/api/05_URLS_EXAMPLES.md](docs/api/05_URLS_EXAMPLES.md)** 🔗 | URLs + ejemplos (curl, Python, JS) | 5 min |
+| 🟢 | **[docs/api/07_LIVE_EXAMPLES.md](docs/api/07_LIVE_EXAMPLES.md)** 🟢 | Respuestas REALES consultadas hoy | 3 min |
+| 📊 | **[docs/api/06_TECHNICAL_REPORT.json](docs/api/06_TECHNICAL_REPORT.json)** | Reporte técnico (datos crudos) | - |
+| 🔧 | **[docs/api/generate_report.py](docs/api/generate_report.py)** | Script validación (regenera reporte) | - |
 
 ### URLs de producción
 - **Sitio live (Vercel):** https://www.cltfutbol.com.uy — dominio principal, apunta a Vercel
@@ -137,7 +150,6 @@ CLT_Dash/
   .github/
     workflows/
       gh-pages.yml        ← Deploy automático a GitHub Pages en cada push a main
-  Prompt.md             ← Documento original de requerimientos del usuario
   CLAUDE.md             ← Este archivo
 ```
 
@@ -467,14 +479,5 @@ node_modules/
 ```
 
 ---
-
-## Scripts de referencia originales (no usar, solo consultar)
-
-Los 3 scripts originales del usuario están en la raíz del proyecto:
-- `Codigo_CLT_Sep.py` — extractor de partidos (tiene bug de race condition en rate limiter)
-- `titulares_cambios_goles_Sep.py` — extractor de detalles
-- `scrap_detalles_clt_Julio.py` — versión anterior más simple
-
-Fueron reemplazados por `scraper/extractor.py` que unifica todo y corrige los bugs.
 
 ## IMPORTANTE el usuario no es tecnico, explicar cambios y pasos de manera simple

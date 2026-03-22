@@ -1,5 +1,7 @@
 # Base de datos SQLite — solo se usa localmente y en GitHub Actions
 scraper/clt.db
+scraper/clt.db-shm
+scraper/clt.db-wal
 
 # Entorno virtual Python
 scraper/.venv/
