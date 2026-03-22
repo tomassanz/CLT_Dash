@@ -125,7 +125,7 @@ export default function LandingPage() {
           {/* Club icon */}
           <div className={`mt-8 transition-all duration-500 delay-100 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <Image
-              src="/icon.jpg"
+              src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.jpg`}
               alt="CLT"
               width={72}
               height={72}

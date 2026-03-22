@@ -7,6 +7,7 @@ import { Suspense } from "react"
 import { Instagram } from "lucide-react"
 import "./globals.css"
 
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? ""
 const barlow = Barlow({ variable: "--font-barlow", subsets: ["latin"], weight: ["400", "500", "600", "700"] })
 const barlowCond = Barlow_Condensed({ variable: "--font-barlow-cond", subsets: ["latin"], weight: ["700", "800", "900"] })
 
@@ -16,13 +17,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <title>CLT Fútbol</title>
         <meta name="description" content="Toda la historia del fútbol del Carrasco Lawn Tennis Club en la Liga Universitaria de Deportes" />
-        <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
-        <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="shortcut icon" href="/favicon-32x32.png" />
+        <link rel="icon" href={`${BASE}/favicon-32x32.png`} sizes="32x32" type="image/png" />
+        <link rel="icon" href={`${BASE}/favicon-16x16.png`} sizes="16x16" type="image/png" />
+        <link rel="apple-touch-icon" href={`${BASE}/apple-touch-icon.png`} />
+        <link rel="shortcut icon" href={`${BASE}/favicon-32x32.png`} />
         <meta property="og:title" content="CLT Fútbol" />
         <meta property="og:description" content="Toda la historia del fútbol del Carrasco Lawn Tennis Club en la Liga Universitaria de Deportes" />
-        <meta property="og:image" content="/icon.jpg" />
+        <meta property="og:image" content={`${BASE}/icon.jpg`} />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary" />
         <meta name="twitter:title" content="CLT Fútbol" />
@@ -81,7 +82,7 @@ function Header() {
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
           <Image
-            src="/icon.jpg"
+            src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.jpg`}
             alt="CLT"
             width={40}
             height={40}
