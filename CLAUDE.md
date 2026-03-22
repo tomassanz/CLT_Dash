@@ -13,9 +13,10 @@ Dashboard web público que muestra toda la historia de partidos de fútbol del *
 ## Estado actual del proyecto (al 18/03/2026 — actualizado sesión 2)
 
 ### URLs de producción
-- **Sitio live:** https://clt-futbol-historia.vercel.app
-- **GitHub repo:** https://github.com/tomassanz/CLT_Dash (privado)
-- **Vercel project:** tomas-projects-4252e6bd/frontend
+- **Sitio live (Vercel):** https://www.cltfutbol.com.uy — dominio principal, apunta a Vercel
+- **Sitio backup (GitHub Pages):** https://tomassanz.github.io/CLT_Dash/ — mirror automático, sin límites de requests
+- **GitHub repo:** https://github.com/tomassanz/CLT_Dash (público)
+- **Vercel project:** https://vercel.com/tomas-projects-4252e6bd/clt_futbol
 
 ### ✅ Completado
 
@@ -23,11 +24,13 @@ Dashboard web público que muestra toda la historia de partidos de fútbol del *
 |---|---|---|
 | `scraper/test_api.py` | ✅ Listo | Script de reconocimiento/diagnóstico de la API |
 | `scraper/extractor.py` | ✅ Listo | Extractor unificado + tablas de liga (Sistema B) |
-| `scraper/json_generator.py` | ✅ Listo | Genera matches, seasons, match details, players_stats, league_context, last_updated |
-| `frontend/` | ✅ En producción | Next.js 16 en https://clt-futbol-historia.vercel.app |
+| `scraper/json_generator.py` | ✅ Listo | Genera matches, seasons, match details, player_index, players_stats, league_context, last_updated |
+| `frontend/` | ✅ En producción | Next.js 16 en https://www.cltfutbol.com.uy |
 | **Datos históricos** | ✅ Completos | ~1860 partidos, temporadas 2003–2025 (90–112) |
 | **Deploy Vercel** | ✅ Live | Conectado a GitHub — auto-redeploy en cada push a main |
-| **GitHub repo** | ✅ Privado | https://github.com/tomassanz/CLT_Dash |
+| **GitHub repo** | ✅ Público | https://github.com/tomassanz/CLT_Dash |
+| **GitHub Pages (backup)** | ✅ Live | https://tomassanz.github.io/CLT_Dash/ — mirror automático |
+| **Static export** | ✅ Listo | `output: "export"` — 0 edge requests en Vercel |
 | **APIs de liga (Sistema B)** | ✅ En producción (BETA) | Tab "Liga" visible con badge BETA + aviso de solo 2025 |
 | **Modal de partido** | ✅ Listo | `MatchModal.tsx` con flechas ← → para navegar entre partidos filtrados |
 | **Página Jugadores mejorada** | ✅ Listo | Filtros de rol/goles/tarjetas, modal con flechas, jugador en URL |
@@ -40,8 +43,38 @@ Dashboard web público que muestra toda la historia de partidos de fútbol del *
 | **GitHub Actions (cron semanal)** | 🔴 Próxima instancia | `.github/workflows/update.yml`. Corre `--incremental` cada domingo y hace push automático. |
 | **Tab "Liga" — ampliar a más temporadas** | 🟡 Futuro | Hoy solo tiene datos de temporada 112 (2025). Ver Paso 3 abajo. |
 
-### Cómo deployar cambios
-Vercel está conectado a GitHub. Cualquier `git push origin main` redespliega el sitio automáticamente en ~1 minuto.
+### Hosting y deploy
+
+El sitio es **100% estático** (`output: "export"` en Next.js). No hay servidor, no hay APIs, no hay SSR. Esto permite hostearlo en cualquier servicio de archivos estáticos.
+
+#### Dos deploys en paralelo (automáticos)
+
+Cada `git push origin main` dispara **ambos** deploys simultáneamente:
+
+| Hosting | URL | Mecanismo | Límites |
+|---|---|---|---|
+| **Vercel** (principal) | https://www.cltfutbol.com.uy | Auto-deploy al detectar push en GitHub | 1M edge requests/mes (plan Hobby gratuito, se renueva el 1 de cada mes) |
+| **GitHub Pages** (backup) | https://tomassanz.github.io/CLT_Dash/ | GitHub Actions workflow (`.github/workflows/gh-pages.yml`) | Sin límites de requests |
+
+#### Dominio `cltfutbol.com.uy`
+
+Hoy apunta a Vercel. Si se agotan los edge requests de Vercel, se puede redirigir el dominio a GitHub Pages sin tocar código:
+1. En el DNS del dominio, cambiar el CNAME para que apunte a `tomassanz.github.io`
+2. En GitHub repo → Settings → Pages → Custom domain → poner `www.cltfutbol.com.uy`
+3. Listo — el sitio sigue funcionando igual pero servido desde GitHub Pages (gratis, sin límites)
+
+#### Diferencia técnica entre ambos builds
+
+- **Vercel:** build normal, `basePath` = `/` (raíz)
+- **GitHub Pages:** build con `GITHUB_PAGES=true`, `basePath` = `/CLT_Dash` (subdirectorio). Configurado en `next.config.ts` con variable de entorno.
+
+#### Optimizaciones de edge requests (marzo 2026)
+
+Se redujo el consumo de ~2,000 edge requests/visita a ~100:
+- Eliminado `cache: "no-store"` en `data.ts`
+- Precalculado `player_index.json` (mapeo jugador→partidos) para evitar cargar 2,027 archivos JSON
+- Precalculado `bySeason` en `players_stats.json` para rankings sin requests adicionales
+- Activado `output: "export"` para que Vercel sirva desde CDN sin edge functions
 
 ---
 
@@ -76,14 +109,15 @@ CLT_Dash/
       data/
         matches.json            ← Todos los partidos (compacto)
         seasons.json            ← Metadatos para filtros (temporadas, torneos, series, rivales)
-        players_stats.json      ← Rankings goleadores + presencias
+        player_index.json       ← Mapeo carne → [match_ids] (evita cargar 2000+ archivos)
+        players_stats.json      ← Rankings goleadores (con bySeason) + presencias
         league_context.json     ← Tablas de posiciones/goleadores/valla del Sistema B por temporada
         last_updated.json       ← Timestamp de última actualización
         match/
           {id}.json             ← Detalle de cada partido (alineación, goles, cambios, tarjetas)
   .github/
     workflows/
-      (vacío — pendiente crear update.yml)
+      gh-pages.yml        ← Deploy automático a GitHub Pages en cada push a main
   Prompt.md             ← Documento original de requerimientos del usuario
   CLAUDE.md             ← Este archivo
 ```
