@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { loadMatches, loadPlayersStats } from "@/lib/data"
 
 /* ── Stats from data ────────────────────────────────────────────────────────── */
 interface LandingStats {
@@ -16,8 +17,8 @@ function useStats(): LandingStats {
 
   useEffect(() => {
     Promise.all([
-      fetch("/data/matches.json").then(r => r.json()),
-      fetch("/data/players_stats.json").then(r => r.json()),
+      loadMatches(),
+      loadPlayersStats(),
     ]).then(([matches, ps]) => {
       const seasonSet = new Set<number>()
       for (const m of matches) seasonSet.add(m.season)
