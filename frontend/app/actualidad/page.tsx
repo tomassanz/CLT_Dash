@@ -147,16 +147,13 @@ export default function ActualidadPage() {
           {/* Active category header */}
           {activeCat && (
             <>
-              <div className="rounded-xl border overflow-hidden mb-3" style={{ borderColor: "#E8DDD0" }}>
-                <div className="px-4 py-2 flex items-center justify-between" style={{ backgroundColor: "#6B2D2D" }}>
+              <div className="rounded-xl overflow-hidden mb-3" style={{ backgroundColor: "#6B2D2D" }}>
+                <div className="px-4 py-2 flex items-center justify-between">
                   <div>
                     <span className="text-sm font-bold text-white">{activeCat.name}</span>
                     <span className="text-xs text-white/60 ml-2">{activeCat.division}</span>
                   </div>
                   <span className="text-[10px] text-white/50 uppercase tracking-wider">{activeCat.round}</span>
-                </div>
-                <div className="px-4 py-1.5 text-xs text-gray-400 bg-white">
-                  {activeCat.copa}
                 </div>
               </div>
 
