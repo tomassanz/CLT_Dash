@@ -52,30 +52,6 @@
       ]
     },
     {
-      "id": "mas40",
-      "name": "Más 40",
-      "division": "Divisional B",
-      "copa": "15º Aniversario River Plate Universitario",
-      "round": "1ª Rueda",
-      "matches": [
-        { "fecha": 1,  "date": "2026-04-11", "opponent": "Perry Sexta",                    "home": false },
-        { "fecha": 2,  "date": "2026-04-18", "opponent": "Centro Cristobal Colon",         "home": true },
-        { "fecha": 3,  "date": "2026-04-25", "opponent": "Club Atletico Brazo Oriental",   "home": false },
-        { "fecha": 4,  "date": "2026-05-09", "opponent": "Club Atletico Brazo Oriental",   "home": true },
-        { "fecha": 5,  "date": "2026-05-16", "opponent": "Esparta",                        "home": false },
-        { "fecha": 6,  "date": "2026-05-23", "opponent": "Sindicato Medico del Uruguay",   "home": true },
-        { "fecha": 7,  "date": "2026-05-30", "opponent": "River Plate Universitario",      "home": false },
-        { "fecha": 8,  "date": "2026-06-06", "opponent": "San Isidro Lomas Universitario", "home": true },
-        { "fecha": 9,  "date": "2026-06-13", "opponent": "Danubio F.C.",                   "home": true },
-        { "fecha": 10, "date": "2026-06-20", "opponent": "Centro Cristobal Colon",         "home": true },
-        { "fecha": 11, "date": "2026-06-27", "opponent": "River Plate Universitario",      "home": true },
-        { "fecha": 12, "date": "2026-07-25", "opponent": "Familiar",                       "home": false },
-        { "fecha": 13, "date": "2026-08-01", "opponent": "Flores Universitario",           "home": true },
-        { "fecha": 14, "date": "2026-08-08", "opponent": "Sindicato Medico del Uruguay",   "home": true },
-        { "fecha": 15, "date": "2026-08-15", "opponent": "Familiar",                       "home": true }
-      ]
-    },
-    {
       "id": "presenior",
       "name": "Presenior",
       "division": "Divisional B",
@@ -97,6 +73,30 @@
         { "fecha": 13, "date": "2026-08-01", "opponent": "Circulo de Tenis Montevideo",    "home": true },
         { "fecha": 14, "date": "2026-08-08", "opponent": "Wolframio",                      "home": false },
         { "fecha": 15, "date": "2026-08-15", "opponent": "Estudiantil Salteño",            "home": false }
+      ]
+    },
+    {
+      "id": "mas40",
+      "name": "Más 40",
+      "division": "Divisional B",
+      "copa": "15º Aniversario River Plate Universitario",
+      "round": "1ª Rueda",
+      "matches": [
+        { "fecha": 1,  "date": "2026-04-11", "opponent": "Perry Sexta",                    "home": false },
+        { "fecha": 2,  "date": "2026-04-18", "opponent": "Centro Cristobal Colon",         "home": true },
+        { "fecha": 3,  "date": "2026-04-25", "opponent": "Club Atletico Brazo Oriental",   "home": false },
+        { "fecha": 4,  "date": "2026-05-09", "opponent": "Club Atletico Brazo Oriental",   "home": true },
+        { "fecha": 5,  "date": "2026-05-16", "opponent": "Esparta",                        "home": false },
+        { "fecha": 6,  "date": "2026-05-23", "opponent": "Sindicato Medico del Uruguay",   "home": true },
+        { "fecha": 7,  "date": "2026-05-30", "opponent": "River Plate Universitario",      "home": false },
+        { "fecha": 8,  "date": "2026-06-06", "opponent": "San Isidro Lomas Universitario", "home": true },
+        { "fecha": 9,  "date": "2026-06-13", "opponent": "Danubio F.C.",                   "home": true },
+        { "fecha": 10, "date": "2026-06-20", "opponent": "Centro Cristobal Colon",         "home": true },
+        { "fecha": 11, "date": "2026-06-27", "opponent": "River Plate Universitario",      "home": true },
+        { "fecha": 12, "date": "2026-07-25", "opponent": "Familiar",                       "home": false },
+        { "fecha": 13, "date": "2026-08-01", "opponent": "Flores Universitario",           "home": true },
+        { "fecha": 14, "date": "2026-08-08", "opponent": "Sindicato Medico del Uruguay",   "home": true },
+        { "fecha": 15, "date": "2026-08-15", "opponent": "Familiar",                       "home": true }
       ]
     }
   ]
