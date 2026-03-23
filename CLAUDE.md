@@ -145,6 +145,7 @@ CLT_Dash/
         players_stats.json      ← Rankings goleadores (con bySeason) + presencias
         league_context.json     ← Tablas de posiciones/goleadores/valla del Sistema B por temporada
         last_updated.json       ← Timestamp de última actualización
+        fixtures.json           ← Fixtures temporada 2026 (calendario de partidos CLT)
         match/
           {id}.json             ← Detalle de cada partido (alineación, goles, cambios, tarjetas)
   .github/
@@ -394,8 +395,60 @@ Modal reutilizable para ver el detalle de un partido sin salir de la página.
 - Las flechas del modal navegan por los partidos del jugador **con los filtros activos** aplicados
 
 ### Vista Actualidad (`/actualidad`)
-- Últimos resultados de la temporada actual (agrupados por fecha)
-- Próximos partidos si la API los tiene cargados
+- **Calendario/Fixtures** (card superior): muestra los partidos programados de CLT por categoría
+- **Próximamente** (card inferior): placeholder para resultados del finde, goleadores, tablas, etc.
+- Últimos resultados de la temporada actual (agrupados por fecha) — pendiente de implementar
+- Próximos partidos si la API los tiene cargados — pendiente de implementar
+
+### Sistema de Fixtures (`fixtures.json`)
+
+**Archivo:** `frontend/public/data/fixtures.json`
+
+Contiene los partidos programados de CLT para la temporada 2026 (temporada 113), organizados por categoría.
+
+**Estado actual (23/03/2026):**
+- Los datos están **ocultos** (`"hidden": true`) porque tienen errores que hay que corregir
+- Cuando `hidden: true`, la página muestra todas las categorías como "pendientes" (chips grises con borde punteado)
+- Para hacer visibles los fixtures: cambiar `"hidden": true` a `"hidden": false` en `fixtures.json`
+
+**Categorías cargadas (con errores, pendientes de corrección):**
+- Mayores — Divisional A
+- Reserva — Divisional A
+- Presenior — Divisional B
+- Más 40 — Divisional B
+
+**Categorías pendientes (sin datos todavía):**
+- Sub-20, Sub-18, Sub-16, Sub-14 — el usuario va a pasar los datos cuando los tenga
+
+**Orden de categorías en la UI:** Mayores → Reserva → Presenior → Más 40 → Sub-20 → Sub-18 → Sub-16 → Sub-14
+
+**Estructura del JSON:**
+```json
+{
+  "season": 113,
+  "year": 2026,
+  "seasonName": "...",
+  "hidden": true,  // ← cambiar a false cuando los datos estén corregidos
+  "categories": [
+    {
+      "id": "mayores",
+      "name": "Mayores",
+      "division": "Divisional A",
+      "copa": "Copa Pilsen 0,0%",
+      "round": "1ª Rueda",
+      "matches": [
+        { "fecha": 1, "date": "2026-04-12", "opponent": "Tenis El Pinar", "home": true },
+        ...
+      ]
+    }
+  ]
+}
+```
+
+**Funcionalidades de la UI:**
+- Cada categoría muestra su propio badge "PRÓXIMO" en el primer partido futuro
+- Partidos pasados se ven atenuados (opacity)
+- Badge Local (verde) / Visitante (naranja) por partido
 
 ---
 

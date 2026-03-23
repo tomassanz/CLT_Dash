@@ -23,6 +23,7 @@ interface FixturesData {
   season: number
   year: number
   seasonName: string
+  hidden?: boolean
   categories: Category[]
 }
 
@@ -90,9 +91,14 @@ export default function ActualidadPage() {
     )
   }
 
-  const sortedCategories = [...data.categories].sort((a, b) => CATEGORY_ORDER.indexOf(a.id) - CATEGORY_ORDER.indexOf(b.id))
+  const fixturesHidden = data.hidden === true
+  const sortedCategories = fixturesHidden ? [] : [...data.categories].sort((a, b) => CATEGORY_ORDER.indexOf(a.id) - CATEGORY_ORDER.indexOf(b.id))
   const activeCat = sortedCategories.find(c => c.id === activeTab)
   const nextFechaForActive = activeCat ? findNextMatchForCategory(activeCat) : null
+
+  const allPendingCategories = fixturesHidden
+    ? ["Mayores", "Reserva", "Presenior", "Más 40", "Sub-20", "Sub-18", "Sub-16", "Sub-14"]
+    : PENDING_CATEGORIES
 
   const comingSoonItems = [
     { Icon: Calendar, label: "Resultados del fin de semana" },
@@ -134,7 +140,7 @@ export default function ActualidadPage() {
                 {cat.name}
               </button>
             ))}
-            {PENDING_CATEGORIES.map(name => (
+            {allPendingCategories.map(name => (
               <span
                 key={name}
                 className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap text-gray-300 bg-white/60 border border-dashed border-gray-200"
@@ -143,6 +149,13 @@ export default function ActualidadPage() {
               </span>
             ))}
           </div>
+
+          {/* Message when all hidden */}
+          {fixturesHidden && (
+            <p className="text-sm text-gray-400 text-center py-4">
+              Los fixtures se van a ir cargando a medida que estén confirmados.
+            </p>
+          )}
 
           {/* Active category header */}
           {activeCat && (
