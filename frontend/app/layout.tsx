@@ -16,20 +16,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es">
       <head>
-        <title>CLT Fútbol</title>
-        <meta name="description" content="Toda la historia del fútbol del Carrasco Lawn Tennis Club en la Liga Universitaria de Deportes" />
+        <title>CLT Fútbol — Carrasco Lawn Tennis Club</title>
+        <meta name="description" content="Toda la historia del fútbol del Carrasco Lawn Tennis Club (CLT) en la Liga Universitaria de Deportes de Uruguay. Partidos, estadísticas, goleadores y jugadores desde 2003." />
+        <meta name="keywords" content="Carrasco Lawn Tennis, CLT, fútbol, Liga Universitaria, Uruguay, estadísticas, goleadores, historia, partidos" />
+        <link rel="canonical" href="https://www.cltfutbol.com.uy/" />
         <link rel="icon" href={`${BASE}/favicon-32x32.png`} sizes="32x32" type="image/png" />
         <link rel="icon" href={`${BASE}/favicon-16x16.png`} sizes="16x16" type="image/png" />
         <link rel="apple-touch-icon" href={`${BASE}/apple-touch-icon.png`} />
         <link rel="shortcut icon" href={`${BASE}/favicon-32x32.png`} />
-        <meta property="og:title" content="CLT Fútbol" />
-        <meta property="og:description" content="Toda la historia del fútbol del Carrasco Lawn Tennis Club en la Liga Universitaria de Deportes" />
-        <meta property="og:image" content={`${BASE}/icon.jpg`} />
+        <meta property="og:title" content="CLT Fútbol — Carrasco Lawn Tennis Club" />
+        <meta property="og:description" content="Toda la historia del fútbol del Carrasco Lawn Tennis Club en la Liga Universitaria de Deportes. +1800 partidos, estadísticas y jugadores desde 2003." />
+        <meta property="og:image" content="https://www.cltfutbol.com.uy/icon.jpg" />
+        <meta property="og:url" content="https://www.cltfutbol.com.uy/" />
         <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="CLT Fútbol" />
+        <meta property="og:locale" content="es_UY" />
         <meta name="twitter:card" content="summary" />
-        <meta name="twitter:title" content="CLT Fútbol" />
-        <meta name="twitter:description" content="Toda la historia del fútbol del Carrasco Lawn Tennis Club en la Liga Universitaria" />
-        <meta name="twitter:image" content="/icon.jpg" />
+        <meta name="twitter:title" content="CLT Fútbol — Carrasco Lawn Tennis Club" />
+        <meta name="twitter:description" content="Toda la historia del fútbol del CLT en la Liga Universitaria. Partidos, estadísticas y jugadores desde 2003." />
+        <meta name="twitter:image" content="https://www.cltfutbol.com.uy/icon.jpg" />
       </head>
       <body className={`${barlow.variable} ${barlowCond.variable} antialiased`}>
         <Suspense>
