@@ -24,10 +24,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="canonical" href="https://www.cltfutbol.com.uy/" />
 
         {/* Favicon */}
+        <link rel="icon" href={`${BASE}/favicon.ico`} sizes="48x48" />
         <link rel="icon" href={`${BASE}/favicon-32x32.png`} sizes="32x32" type="image/png" />
         <link rel="icon" href={`${BASE}/favicon-16x16.png`} sizes="16x16" type="image/png" />
         <link rel="apple-touch-icon" href={`${BASE}/apple-touch-icon.png`} />
-        <link rel="shortcut icon" href={`${BASE}/favicon-32x32.png`} />
+        <link rel="manifest" href={`${BASE}/site.webmanifest`} />
 
         {/* Open Graph Meta Tags - Esencial para compartir en redes sociales y búsqueda */}
         <meta property="og:title" content="CLT Fútbol — Carrasco Lawn Tennis Club" />
