@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Calendar, Home, Plane, Trophy, Clock, ChevronRight } from "lucide-react"
 import type { Match, MatchDetail } from "@/lib/types"
 import { loadMatches, loadMatchDetail, rival, formatDate, toProperCase } from "@/lib/data"
@@ -84,8 +85,15 @@ const SECTIONS: { id: Section; label: string; icon: typeof Calendar }[] = [
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function ActualidadPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
+  const tabParam = searchParams.get("tab") as Section | null
+  const validSections: Section[] = ["resultados", "tablas", "fixtures"]
+  const initialSection = tabParam && validSections.includes(tabParam) ? tabParam : "resultados"
+
   const [fixturesData, setFixturesData] = useState<FixturesData | null>(null)
-  const [activeSection, setActiveSection] = useState<Section>("resultados")
+  const [activeSection, setActiveSection] = useState<Section>(initialSection)
   const [activeCatTab, setActiveCatTab] = useState<string>("")
 
   // Resultados state
@@ -156,7 +164,7 @@ export default function ActualidadPage() {
         {SECTIONS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => setActiveSection(id)}
+            onClick={() => { setActiveSection(id); router.replace(`?tab=${id}`, { scroll: false }) }}
             className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors"
             style={{
               backgroundColor: activeSection === id ? "#6B2D2D" : "#FDFAF6",
