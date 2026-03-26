@@ -60,6 +60,8 @@ Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
 |---|---|---|
 | **GitHub Actions (cron semanal)** | 🔴 Próxima instancia | `.github/workflows/update.yml`. Corre `--incremental` cada domingo y hace push automático. |
 | **Tab "Liga" — ampliar a más temporadas** | 🟡 Futuro | Hoy solo tiene datos de temporada 112 (2025). Ver Paso 3 abajo. |
+| **Fixtures: partidos suspendidos por lluvia** | 🟡 Futuro | Hoy los partidos se atenúan (opacity) y el badge "PRÓXIMO" avanza solo por fecha calendario. Si un partido se suspende por lluvia y se reprograma, la UI no lo refleja — sigue apareciendo como "pasado". Hay que definir un mecanismo (campo `suspended`/`rescheduled` en fixtures.json, o cruzar contra el historial real de partidos jugados). |
+| **Fixtures: faltan Sub-18, Sub-16, Sub-14** | 🟢 Cuando estén los datos | El usuario va a pasar los fixtures cuando los tenga. Agregarlos a `fixtures.json` y sacarlos de `PENDING_CATEGORIES` en `actualidad/page.tsx`. |
 
 ### Hosting y deploy
 
@@ -406,19 +408,22 @@ Modal reutilizable para ver el detalle de un partido sin salir de la página.
 
 Contiene los partidos programados de CLT para la temporada 2026 (temporada 113), organizados por categoría.
 
-**Estado actual (23/03/2026):**
-- Los datos están **ocultos** (`"hidden": true`) porque tienen errores que hay que corregir
-- Cuando `hidden: true`, la página muestra todas las categorías como "pendientes" (chips grises con borde punteado)
-- Para hacer visibles los fixtures: cambiar `"hidden": true` a `"hidden": false` en `fixtures.json`
+**Estado actual (25/03/2026):**
+- Los datos están **visibles** (`"hidden": false`) — verificados y corregidos
+- Nombres de rivales normalizados contra la base de datos histórica de partidos
+- Datos fuente en `fixtures/fixtures_clt.md` (texto verificado) y PDFs originales en `fixtures/`
 
-**Categorías cargadas (con errores, pendientes de corrección):**
-- Mayores — Divisional A
-- Reserva — Divisional A
-- Presenior — Divisional B
-- Más 40 — Divisional B
+**Categorías cargadas (verificadas):**
+- Mayores — Divisional A — Copa Pilsen 0,0%
+- Sub-20 — Divisional A — Copa Perifar
+- Reserva — Divisional A — Copa Antel
+- Presenior — Divisional B — Copa Summum
+- Más 40 — Divisional B — 15º Aniversario River Plate Universitario
 
 **Categorías pendientes (sin datos todavía):**
-- Sub-20, Sub-18, Sub-16, Sub-14 — el usuario va a pasar los datos cuando los tenga
+- Sub-18, Sub-16, Sub-14 — el usuario va a pasar los datos cuando los tenga
+
+**Limitación conocida:** el badge "PRÓXIMO" y la atenuación de partidos pasados se calculan solo por fecha calendario. Si un partido se suspende por lluvia y se reprograma, la UI no lo refleja — sigue apareciendo como "pasado". Pendiente definir mecanismo para manejar suspensiones.
 
 **Orden de categorías en la UI:** Mayores → Reserva → Presenior → Más 40 → Sub-20 → Sub-18 → Sub-16 → Sub-14
 
@@ -428,7 +433,7 @@ Contiene los partidos programados de CLT para la temporada 2026 (temporada 113),
   "season": 113,
   "year": 2026,
   "seasonName": "...",
-  "hidden": true,  // ← cambiar a false cuando los datos estén corregidos
+  "hidden": false,
   "categories": [
     {
       "id": "mayores",
