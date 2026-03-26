@@ -6,17 +6,17 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://www.cltfutbol.com.uy/actualidad/</loc>
+    <loc>https://www.cltfutbol.com.uy/actualidad</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://www.cltfutbol.com.uy/historia/</loc>
+    <loc>https://www.cltfutbol.com.uy/historia</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://www.cltfutbol.com.uy/jugador/</loc>
+    <loc>https://www.cltfutbol.com.uy/jugador</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
