@@ -322,7 +322,7 @@ export default function ActualidadPage() {
                 Todavía no arrancó el campeonato
               </p>
               <p className="text-xs text-gray-400 mt-1.5 text-center max-w-xs leading-relaxed">
-                Cuando se jueguen las primeras fechas, acá vas a ver las tablas de posiciones, goleadores y goleros de cada divisional, con los datos de CLT resaltados.
+                Cuando se jueguen las primeras fechas, acá vas a ver las tablas de posiciones, goleadores y goleros de cada divisional, con los datos de CLT.
               </p>
             </div>
           </>
