@@ -366,7 +366,7 @@ export default function HistoriaPage() {
             }}
           >
             {t === "partidos"
-              ? `Partidos (${filtered.length})`
+              ? `Partidos · ${filtered.length}`
               : t === "goleadores"
               ? "Goleadores"
               : "Más presencias"}
