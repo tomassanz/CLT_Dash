@@ -269,13 +269,8 @@ export default function LandingPage() {
 
                 <h2 className="font-display text-2xl sm:text-3xl font-black uppercase leading-tight"
                   style={{ color: "#FFFFFF" }}>
-                  La nueva camiseta<br />ya está acá
+                  La nueva piel<br />ya está acá
                 </h2>
-
-                <p className="text-sm mt-3 leading-relaxed"
-                  style={{ color: "#FFFFFF77" }}>
-                  Joma, blanca con detalles bordo y el escudo del club. La nueva indumentaria de CLT para la temporada 2026.
-                </p>
 
                 <div className="mt-6 flex items-center gap-2 text-sm font-bold uppercase tracking-wider transition-colors duration-200"
                   style={{ color: "#D4A843" }}>
