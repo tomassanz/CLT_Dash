@@ -143,7 +143,7 @@ export default function LandingPage() {
           {/* Subtitle */}
           <p className={`text-base sm:text-lg md:text-xl mt-5 uppercase tracking-widest font-semibold transition-all duration-500 delay-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
             style={{ color: "#D4A843" }}>
-            Toda la historia del futbol en un solo lugar
+            Todo el fútbol del CLT en un solo lugar
           </p>
 
           {/* Description */}
