@@ -155,32 +155,32 @@ export default function LandingPage() {
 
           {/* CTA */}
           <div className={`mt-8 flex flex-col items-center gap-3 transition-all duration-500 delay-500 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-            <Link
-              href="/historia"
-              className="inline-block px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 hover:bg-[#c99b38]"
-              style={{ backgroundColor: "#D4A843", color: "#2A1010" }}
-            >
-              Explorar la historia
-            </Link>
             <div className="flex flex-col sm:flex-row items-center gap-3">
               <Link
                 href="/actualidad"
-                className="inline-flex flex-col items-center px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 border hover:bg-white/10"
-                style={{ color: "#D4A843", borderColor: "#D4A84366" }}
+                className="inline-flex flex-col items-center px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 hover:bg-[#c99b38]"
+                style={{ backgroundColor: "#D4A843", color: "#2A1010" }}
               >
                 <span>Ver actualidad</span>
-                <span className="text-[10px] sm:text-xs font-normal normal-case tracking-normal mt-0.5" style={{ color: "#FFFFFF66" }}>
+                <span className="text-[10px] sm:text-xs font-normal normal-case tracking-normal mt-0.5" style={{ color: "#2A101099" }}>
                   Fixtures, tablas y resultados
                 </span>
               </Link>
               <Link
-                href="/jugador"
-                className="inline-block px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 border hover:bg-white/10"
-                style={{ color: "#D4A843", borderColor: "#D4A84366" }}
+                href="/historia"
+                className="inline-block px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 hover:bg-[#c99b38]"
+                style={{ backgroundColor: "#D4A843", color: "#2A1010" }}
               >
-                Buscar jugadores
+                Explorar la historia
               </Link>
             </div>
+            <Link
+              href="/jugador"
+              className="inline-block px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 border hover:bg-white/10"
+              style={{ color: "#D4A843", borderColor: "#D4A84366" }}
+            >
+              Buscar jugadores
+            </Link>
           </div>
         </div>
 
