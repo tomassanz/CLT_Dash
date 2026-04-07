@@ -178,13 +178,6 @@ export default function LandingPage() {
             </Link>
           </div>
         </div>
-
-        {/* Scroll hint */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D4A843" strokeWidth="2" opacity="0.6">
-            <path d="M12 5v14M5 12l7 7 7-7" />
-          </svg>
-        </div>
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════════
