@@ -157,13 +157,10 @@ export default function LandingPage() {
           <div className={`mt-8 flex flex-col sm:flex-row items-stretch justify-center gap-3 transition-all duration-500 delay-500 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <Link
               href="/actualidad"
-              className="flex flex-col items-center justify-center px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 border hover:bg-white/10"
+              className="flex items-center justify-center px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 border hover:bg-white/10"
               style={{ color: "#D4A843", borderColor: "#D4A84366" }}
             >
-              <span>Ver actualidad</span>
-              <span className="text-[10px] sm:text-xs font-normal normal-case tracking-normal mt-0.5" style={{ color: "#FFFFFF55" }}>
-                Fixtures, tablas y resultados
-              </span>
+              Actualidad
             </Link>
             <Link
               href="/historia"
