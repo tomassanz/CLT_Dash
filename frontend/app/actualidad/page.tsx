@@ -37,7 +37,7 @@ interface FixturesData {
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? ""
 const CATEGORY_ORDER = ["mayores", "reserva", "presenior", "mas40", "sub20", "sub18", "sub16", "sub14"]
-const PENDING_CATEGORIES = ["Sub-18", "Sub-16", "Sub-14"]
+const PENDING_CATEGORIES = ["Sub-14"]
 
 type Section = "fixtures" | "tablas" | "resultados"
 
