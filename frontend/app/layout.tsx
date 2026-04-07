@@ -124,7 +124,7 @@ function Header() {
 
         <nav className="flex items-center gap-1">
           <NavLink href="/actualidad" active={pathname.startsWith("/actualidad")}>Actualidad</NavLink>
-          <NavLink href="/historia" active={pathname === "/" || pathname.startsWith("/historia")}>Historia</NavLink>
+          <NavLink href="/historia" active={pathname.startsWith("/historia")}>Historia</NavLink>
           <NavLink href="/jugador" active={pathname.startsWith("/jugador")}>Jugadores</NavLink>
         </nav>
       </div>
