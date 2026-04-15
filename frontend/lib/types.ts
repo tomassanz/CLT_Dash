@@ -149,3 +149,33 @@ export type LeagueContext = Record<string, SeriesLeagueContext[]>
 
 // player_index.json: { carne: match_id[] }
 export type PlayerIndex = Record<string, string[]>
+
+// ─── Fixtures live ──────────────────────────────────────────────────────────
+
+export interface FixtureMatchLive {
+  fecha: number
+  date: string
+  opponent: string
+  home: boolean
+  played: boolean
+  score_home?: number
+  score_away?: number
+  time?: string
+  venue?: string
+}
+
+export interface FixtureCategoryLive {
+  id: string
+  name: string
+  division: string
+  copa: string
+  round: string
+  matches: FixtureMatchLive[]
+}
+
+export interface FixturesLive {
+  season: number
+  year: number
+  generated: string
+  categories: FixtureCategoryLive[]
+}

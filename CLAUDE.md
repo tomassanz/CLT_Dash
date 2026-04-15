@@ -10,7 +10,7 @@ Dashboard web público que muestra toda la historia de partidos de fútbol del *
 
 ---
 
-## Estado actual del proyecto (al 22/03/2026 — actualizado sesión 3)
+## Estado actual del proyecto (al 14/04/2026 — actualizado sesión 5)
 
 ### 📚 Documentación de APIs (NUEVA — Marzo 2026)
 
@@ -42,26 +42,28 @@ Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
 |---|---|---|
 | `scraper/test_api.py` | ✅ Listo | Script de reconocimiento/diagnóstico de la API |
 | `scraper/extractor.py` | ✅ Listo | Extractor unificado + tablas de liga (Sistema B) |
-| `scraper/json_generator.py` | ✅ Listo | Genera matches, seasons, match details, player_index, players_stats, league_context, last_updated |
+| `scraper/json_generator.py` | ✅ Listo | Genera matches, seasons, match details, player_index, players_stats, league_context, last_updated, **fixtures_live** |
 | `frontend/` | ✅ En producción | Next.js 16 en https://www.cltfutbol.com.uy |
-| **Datos históricos** | ✅ Completos | ~1860 partidos, temporadas 2003–2025 (90–112) |
+| **Datos históricos** | ✅ Completos | ~2029 partidos, temporadas 2003–2026 (90–113) |
 | **Deploy Vercel** | ✅ Live | Conectado a GitHub — auto-redeploy en cada push a main |
 | **GitHub repo** | ✅ Público | https://github.com/tomassanz/CLT_Dash |
 | **GitHub Pages (backup)** | ✅ Live | https://tomassanz.github.io/CLT_Dash/ — mirror automático |
 | **Static export** | ✅ Listo | `output: "export"` — 0 edge requests en Vercel |
-| **APIs de liga (Sistema B)** | ✅ En producción (BETA) | Tab "Liga" visible con badge BETA + aviso de solo 2025 |
+| **APIs de liga (Sistema B)** | ✅ En producción | Tablas T113: Mayores, Reserva, Sub-20, Presenior, Más 40 |
 | **Modal de partido** | ✅ Listo | `MatchModal.tsx` con flechas ← → para navegar entre partidos filtrados |
 | **Página Jugadores mejorada** | ✅ Listo | Filtros de rol/goles/tarjetas, modal con flechas, jugador en URL |
-| **Datos históricos parchados** | ✅ Completos | ~1860 partidos post-patch de todas las temporadas (90–112) |
+| **Datos T113** | ✅ Completos | 5 partidos primera fecha (may, res, s20, pre, +40) + tablas de posiciones |
+| **Actualidad — Resultados** | ✅ Listo | Cards por categoría: último resultado (sin posición en tabla) |
+| **Actualidad — Tablas** | ✅ Listo | Standings completos con CLT resaltado + goleadores, tabs por categoría (Mayores, Reserva, Sub-20, Presenior, Más 40) |
+| **Actualidad — Próximos (fixtures live)** | ✅ Listo | `fixtures_live.json` generado por `json_generator.py` desde APIs Sistema B. 5 categorías, 15 partidos c/u. Muestra marcador si jugado, cancha si confirmada, badge PRÓXIMO. Sin fetches desde el browser. |
 
 ### ⏳ Pendiente
 
 | Tarea | Prioridad | Detalle |
 |---|---|---|
-| **GitHub Actions (cron semanal)** | 🔴 Próxima instancia | `.github/workflows/update.yml`. Corre `--incremental` cada domingo y hace push automático. |
-| **Tab "Liga" — ampliar a más temporadas** | 🟡 Futuro | Hoy solo tiene datos de temporada 112 (2025). Ver Paso 3 abajo. |
-| **Fixtures: partidos suspendidos por lluvia** | 🟡 Futuro | Hoy los partidos se atenúan (opacity) y el badge "PRÓXIMO" avanza solo por fecha calendario. Si un partido se suspende por lluvia y se reprograma, la UI no lo refleja — sigue apareciendo como "pasado". Hay que definir un mecanismo (campo `suspended`/`rescheduled` en fixtures.json, o cruzar contra el historial real de partidos jugados). |
-| **Fixtures: faltan Sub-18, Sub-16, Sub-14** | 🟢 Cuando estén los datos | El usuario va a pasar los fixtures cuando los tenga. Agregarlos a `fixtures.json` y sacarlos de `PENDING_CATEGORIES` en `actualidad/page.tsx`. |
+| **GitHub Actions (cron semanal)** | 🔴 Próxima instancia | `.github/workflows/update.yml`. Corre `extractor.py --incremental` + `json_generator.py` cada domingo y hace push automático. El `json_generator.py` ya incluye fixtures_live al final. |
+| **Fixtures: Sub-18, Sub-16, Sub-14** | 🟢 Cuando estén los datos | La API devuelve vacío por ahora. Cuando tengan datos, agregar sus combos a `FIXTURE_CATEGORIES` en `json_generator.py` y sacarlos de `PENDING_CATEGORIES` en `actualidad/page.tsx`. |
+| **Fixtures: partidos suspendidos/reprogramados** | 🟡 Futuro | Como fixtures_live viene directo de la API, si la liga actualiza la fecha de un partido reprogramado, se refleja automáticamente en el próximo `json_generator.py`. No hay problema de sync como había con el JSON estático. |
 
 ### Hosting y deploy
 
@@ -147,7 +149,8 @@ CLT_Dash/
         players_stats.json      ← Rankings goleadores (con bySeason) + presencias
         league_context.json     ← Tablas de posiciones/goleadores/valla del Sistema B por temporada
         last_updated.json       ← Timestamp de última actualización
-        fixtures.json           ← Fixtures temporada 2026 (calendario de partidos CLT)
+        fixtures.json           ← Fixtures estáticos (solo Más 40 desde fixtures originales; Mayores/Reserva/Sub20/Presenior/Más40 ahora vienen de fixtures_live.json)
+        fixtures_live.json      ← Calendario CLT generado desde APIs Sistema B (5 categorías, jugados + próximos)
         match/
           {id}.json             ← Detalle de cada partido (alineación, goles, cambios, tarjetas)
   .github/
@@ -234,6 +237,56 @@ Descubiertas en marzo 2026. Usan **parámetros completamente diferentes** al Sis
 Para la categoría de mayores masculino: `torneo=2`. Los códigos de serie más comunes son `AT`, `APD`, `BT`, `BPD`, `CT`, `CPD`, `DT`, `DPD`, `ET`, `EPD`, `FT`, `FPD`, `GT`, `GPD`, `A`, `B`, `C`, `D`, `E`, `F`, `G`.
 
 En temporada 112 confirmado: `torneo=2, serie=AT` y `torneo=2, serie=A` tienen CLT.
+
+**⚠️ IMPORTANTE — Cada categoría usa su propio `categoria` (no siempre es `1`):**
+
+**Combos validados en vivo el 14/04/2026 para temporada 113:**
+
+| Categoría | torneo | categoria | serie | Label en DB |
+|-----------|--------|-----------|-------|-------------|
+| Mayores Div A | `2` | `1` | `A` | `T2/A` |
+| Reserva | `2B` | `2` | `RS1` | `T2B/RS1` |
+| Sub-20 Div A | `20` | `20` | `20A` | `T20/20A` |
+| Presenior Div B | `32` | `32` | `PSB` | `T32/PSB` |
+| Más 40 Div B | `40` | `40` | `M40S2` | `T40/M40S2` |
+
+El scraper (`fetch_league_season_data`) tiene `KNOWN_CATEGORY_COMBOS` con estos valores. Se prueban primero antes del brute-force de mayores.
+
+#### fixtures_live.json — Calendario CLT desde el Sistema B
+
+**Archivo:** `frontend/public/data/fixtures_live.json`  
+**Generado por:** `json_generator.py` → función `gen_fixtures_live(season)`  
+**Se regenera automáticamente** cada vez que se corre `json_generator.py`
+
+Combina `resultados/api.php` (partidos jugados, con marcador) + `partidos/api.php` (próximos) para cada categoría, filtrando solo los partidos de CLT.
+
+**Categorías en `FIXTURE_CATEGORIES` (json_generator.py):**
+
+| id | name | torneo | categoria | serie |
+|----|------|--------|-----------|-------|
+| `mayores` | Mayores | `2` | `1` | `A` |
+| `reserva` | Reserva | `2B` | `2` | `RS1` |
+| `sub20` | Sub-20 | `20` | `20` | `20A` |
+| `presenior` | Presenior | `32` | `32` | `PSB` |
+| `mas40` | Más 40 | `40` | `40` | `M40S2` |
+
+**Campos por partido:**
+```json
+{
+  "fecha": 2,
+  "date": "2026-04-19",
+  "opponent": "Old Woodlands Club",
+  "home": false,
+  "played": false,
+  "time": "09:00",
+  "venue": "Complejo Woodlands School"
+}
+```
+Para partidos jugados se agregan: `"played": true, "score_home": 1, "score_away": 4`
+
+**Nota importante:** `score_home`/`score_away` son siempre **local/visitante del partido** (igual que `matches.json`), NO goles de CLT. El frontend calcula el resultado de CLT a partir de `home: true/false`.
+
+**Sub-18, Sub-16, Sub-14:** la API devuelve vacío por ahora. Cuando tengan datos, agregar a `FIXTURE_CATEGORIES` en `json_generator.py` y sacar de `PENDING_CATEGORIES` en `actualidad/page.tsx`.
 
 #### Los 5 endpoints del Sistema B
 
@@ -397,63 +450,40 @@ Modal reutilizable para ver el detalle de un partido sin salir de la página.
 - Las flechas del modal navegan por los partidos del jugador **con los filtros activos** aplicados
 
 ### Vista Actualidad (`/actualidad`)
-- **Calendario/Fixtures** (card superior): muestra los partidos programados de CLT por categoría
-- **Próximamente** (card inferior): placeholder para resultados del finde, goleadores, tablas, etc.
-- Últimos resultados de la temporada actual (agrupados por fecha) — pendiente de implementar
-- Próximos partidos si la API los tiene cargados — pendiente de implementar
 
-### Sistema de Fixtures (`fixtures.json`)
+Tiene 3 tabs: **Resultados | Tablas | Próximos**
 
-**Archivo:** `frontend/public/data/fixtures.json`
+**Tab Resultados:**
+- Cards por categoría (Mayores, Reserva, Sub-20, Presenior, Más 40) mostrando el último partido jugado de T113
+- Badge V/E/D + marcador (local-visitante) + fecha + Local/Visitante
+- Click en card abre MatchModal con navegación entre partidos de T113
+- Categorías sin tabla de liga (ej: Más 40) aparecen al final como cards simples
 
-Contiene los partidos programados de CLT para la temporada 2026 (temporada 113), organizados por categoría.
+**Tab Tablas:**
+- Tabs por categoría: Mayores | Reserva | Sub-20 | Presenior | Más 40
+- Tabla completa de posiciones con CLT resaltado en dorado
+- Top 8 goleadores de la serie debajo de la tabla
 
-**Estado actual (25/03/2026):**
-- Los datos están **visibles** (`"hidden": false`) — verificados y corregidos
-- Nombres de rivales normalizados contra la base de datos histórica de partidos
-- Datos fuente en `fixtures/fixtures_clt.md` (texto verificado) y PDFs originales en `fixtures/`
+**Tab Próximos (fixtures live):**
+- Carga `fixtures_live.json` (generado por el scraper desde las APIs del Sistema B)
+- Tabs por categoría + tabs punteados para Sub-18/16/14 (pendientes)
+- Partidos jugados: atenuados, muestran marcador en color (verde/amarillo/rojo según resultado CLT)
+- Partidos próximos: badge PRÓXIMO en el siguiente, cancha si está confirmada (oculta si dice "CANCHA A FIJAR")
+- `score_home`/`score_away` = siempre local/visitante del partido (no de CLT)
+- El badge PRÓXIMO usa `played: false` directamente (no fecha calendario)
 
-**Categorías cargadas (verificadas):**
-- Mayores — Divisional A — Copa Pilsen 0,0%
-- Sub-20 — Divisional A — Copa Perifar
-- Reserva — Divisional A — Copa Antel
-- Presenior — Divisional B — Copa Summum
-- Más 40 — Divisional B — 15º Aniversario River Plate Universitario
+### Sistema de Fixtures
 
-**Categorías pendientes (sin datos todavía):**
-- Sub-18, Sub-16, Sub-14 — el usuario va a pasar los datos cuando los tenga
+**`fixtures_live.json`** (principal para Mayores/Reserva/Sub-20/Presenior/Más 40):
+- Generado automáticamente por `json_generator.py` → `gen_fixtures_live()`
+- Fuente: `resultados/api.php` (jugados) + `partidos/api.php` (próximos) por categoría
+- Se actualiza solo con cada corrida del scraper — si la liga reprograma un partido, el próximo json_generator lo refleja
 
-**Limitación conocida:** el badge "PRÓXIMO" y la atenuación de partidos pasados se calculan solo por fecha calendario. Si un partido se suspende por lluvia y se reprograma, la UI no lo refleja — sigue apareciendo como "pasado". Pendiente definir mecanismo para manejar suspensiones.
+**`fixtures.json`** (fallback para categorías sin API):
+- Sub-18, Sub-16, Sub-14 cuando estén disponibles
+- El frontend filtra categorías que ya están en `fixtures_live.json` (`LIVE_CATEGORY_IDS`)
 
 **Orden de categorías en la UI:** Mayores → Reserva → Presenior → Más 40 → Sub-20 → Sub-18 → Sub-16 → Sub-14
-
-**Estructura del JSON:**
-```json
-{
-  "season": 113,
-  "year": 2026,
-  "seasonName": "...",
-  "hidden": false,
-  "categories": [
-    {
-      "id": "mayores",
-      "name": "Mayores",
-      "division": "Divisional A",
-      "copa": "Copa Pilsen 0,0%",
-      "round": "1ª Rueda",
-      "matches": [
-        { "fecha": 1, "date": "2026-04-12", "opponent": "Tenis El Pinar", "home": true },
-        ...
-      ]
-    }
-  ]
-}
-```
-
-**Funcionalidades de la UI:**
-- Cada categoría muestra su propio badge "PRÓXIMO" en el primer partido futuro
-- Partidos pasados se ven atenuados (opacity)
-- Badge Local (verde) / Visitante (naranja) por partido
 
 ---
 

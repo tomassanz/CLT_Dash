@@ -9,8 +9,11 @@ Genera los archivos en ../frontend/public/data/
 
 import json
 import sqlite3
+import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+import requests
 
 DB_PATH  = Path(__file__).parent / "clt.db"
 OUT_DIR  = Path(__file__).parent.parent / "frontend" / "public" / "data"
@@ -367,6 +370,153 @@ def gen_league_context(conn):
                f"league_context.json ({len(result)} temporadas, {total_series} tablas)")
 
 # ──────────────────────────────────────────────────────────────────────────────
+# fixtures_live.json — calendario de CLT desde las APIs del Sistema B
+# ──────────────────────────────────────────────────────────────────────────────
+
+LIGA_BASE  = "https://ligauniversitaria.org.uy"
+SPORT_API  = "F"
+CLT_NAME   = "CARRASCO LAWN TENNIS"
+
+# Categorías con API del Sistema B — validadas el 14/04/2026 para temporada 113
+FIXTURE_CATEGORIES = [
+    {"id": "mayores",   "name": "Mayores",   "division": "Divisional A", "copa": "Copa Pilsen 0,0%",
+     "torneo": "2",  "categoria": "1",  "serie": "A"},
+    {"id": "reserva",   "name": "Reserva",   "division": "Divisional A", "copa": "Copa Antel",
+     "torneo": "2B", "categoria": "2",  "serie": "RS1"},
+    {"id": "sub20",     "name": "Sub-20",    "division": "Divisional A", "copa": "Copa Perifar",
+     "torneo": "20", "categoria": "20", "serie": "20A"},
+    {"id": "presenior", "name": "Presenior", "division": "Divisional B", "copa": "Copa Summum",
+     "torneo": "32", "categoria": "32", "serie": "PSB"},
+    {"id": "mas40",     "name": "Más 40",   "division": "Divisional B", "copa": "",
+     "torneo": "40", "categoria": "40", "serie": "M40S2"},
+]
+
+def _api_get(url: str, params: dict) -> list:
+    """GET a una API de la liga con reintentos simples. Retorna lista o []."""
+    for attempt in range(3):
+        try:
+            r = requests.get(url, params=params, timeout=20)
+            r.raise_for_status()
+            data = r.json()
+            return data if isinstance(data, list) else []
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(1)
+            else:
+                print(f"  ⚠ Error fetching {url} params={params}: {e}")
+    return []
+
+def _fetch_category_fixtures(cat: dict, season: int) -> dict:
+    """
+    Descarga resultados (jugados) + próximos partidos de una categoría para CLT.
+    Retorna la estructura de categoría lista para el JSON.
+    """
+    params_base = {
+        "action":    "cargarPartidos",
+        "temporada": str(season),
+        "deporte":   SPORT_API,
+        "torneo":    cat["torneo"],
+        "categoria": cat["categoria"],
+        "serie":     cat["serie"],
+    }
+
+    results  = _api_get(f"{LIGA_BASE}/resultados/api.php", params_base)
+    upcoming = _api_get(f"{LIGA_BASE}/partidos/api.php",   params_base)
+    time.sleep(0.25)  # rate limiting suave
+
+    matches = []
+
+    # Partidos ya jugados — Fecha es el número de fecha (ej: "1")
+    for r in results:
+        loc = (r.get("Locatario") or "").strip().upper()
+        vis = (r.get("Visitante") or "").strip().upper()
+        is_home = loc == CLT_NAME
+        is_away = vis == CLT_NAME
+        if not is_home and not is_away:
+            continue
+
+        fecha_hora = r.get("Fecha_Hora") or ""
+        date_str = fecha_hora.split(" ")[0] if fecha_hora else ""
+        time_str = fecha_hora.split(" ")[1][:5] if " " in fecha_hora else None
+        if time_str == "00:00":
+            time_str = None
+
+        try:
+            score_home = int(r.get("GL") or 0)
+            score_away = int(r.get("GV") or 0)
+        except (TypeError, ValueError):
+            score_home = score_away = 0
+
+        matches.append({
+            "date":       date_str,
+            "opponent":   (vis if is_home else loc).title(),
+            "home":       is_home,
+            "played":     True,
+            "score_home": score_home,  # GL = goles local (tal cual de la API)
+            "score_away": score_away,  # GV = goles visitante (tal cual de la API)
+            **({"time": time_str} if time_str else {}),
+            **({"venue": r.get("Cancha")} if r.get("Cancha") else {}),
+        })
+
+    # Partidos próximos — Fecha es un datetime ISO (ej: "2026-04-19 11:15:00")
+    for u in upcoming:
+        loc = (u.get("Locatario") or "").strip().upper()
+        vis = (u.get("Visitante") or "").strip().upper()
+        is_home = loc == CLT_NAME
+        is_away = vis == CLT_NAME
+        if not is_home and not is_away:
+            continue
+
+        fecha_raw = u.get("Fecha") or ""
+        date_str  = fecha_raw.split(" ")[0] if fecha_raw else ""
+        time_str  = fecha_raw.split(" ")[1][:5] if " " in fecha_raw else None
+        if time_str == "00:00":
+            time_str = None
+
+        matches.append({
+            "date":     date_str,
+            "opponent": (vis if is_home else loc).title(),
+            "home":     is_home,
+            "played":   False,
+            **({"time": time_str} if time_str else {}),
+            **({"venue": u.get("Cancha")} if u.get("Cancha") else {}),
+        })
+
+    # Ordenar por fecha y asignar número de fecha secuencial
+    matches.sort(key=lambda m: m["date"])
+    for i, m in enumerate(matches, start=1):
+        m["fecha"] = i
+
+    return {
+        "id":       cat["id"],
+        "name":     cat["name"],
+        "division": cat["division"],
+        "copa":     cat["copa"],
+        "round":    "1ª Rueda",
+        "matches":  matches,
+    }
+
+def gen_fixtures_live(season: int):
+    """Genera fixtures_live.json con el calendario de CLT desde las APIs del Sistema B."""
+    print(f"  Bajando fixtures live (temporada {season})...")
+    categories = []
+    for cat in FIXTURE_CATEGORIES:
+        cat_data = _fetch_category_fixtures(cat, season)
+        total = len(cat_data["matches"])
+        played = sum(1 for m in cat_data["matches"] if m.get("played"))
+        print(f"    {cat['name']}: {total} partidos ({played} jugados, {total - played} próximos)")
+        categories.append(cat_data)
+
+    data = {
+        "season":     season,
+        "year":       season + 1913,
+        "generated":  datetime.now(timezone.utc).isoformat(),
+        "categories": categories,
+    }
+    write_json(OUT_DIR / "fixtures_live.json", data,
+               f"fixtures_live.json ({len(categories)} categorías)")
+
+# ──────────────────────────────────────────────────────────────────────────────
 # last_updated.json — timestamp
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -397,6 +547,10 @@ def main():
     gen_players_stats(conn)
     gen_league_context(conn)
     gen_last_updated(conn)
+
+    # Fixtures live — siempre la temporada más reciente
+    latest = conn.execute("SELECT MAX(season) as s FROM matches").fetchone()["s"]
+    gen_fixtures_live(latest)
 
     conn.close()
     print("\nListo.")

@@ -1,4 +1,4 @@
-import type { Match, SeasonsData, MatchDetail, PlayersStats, LastUpdated, LeagueContext, PlayerIndex } from "./types"
+import type { Match, SeasonsData, MatchDetail, PlayersStats, LastUpdated, LeagueContext, PlayerIndex, FixturesLive } from "./types"
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? ""
 
@@ -34,6 +34,10 @@ export function loadLeagueContext(): Promise<LeagueContext> {
 
 export function loadPlayerIndex(): Promise<PlayerIndex> {
   return loadJSON<PlayerIndex>("/data/player_index.json")
+}
+
+export function loadFixturesLive(): Promise<FixturesLive> {
+  return loadJSON<FixturesLive>("/data/fixtures_live.json")
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

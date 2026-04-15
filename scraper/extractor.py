@@ -513,7 +513,19 @@ def fetch_league_season_data(conn, season: int):
     al de detallefechas: torneo=<id_numerico> y serie=<codigo_corto> (ej: AT, APD, BT...).
     Se prueban combinaciones para encontrar las que contienen a CLT.
     """
-    # Códigos de serie más comunes en la liga de fútbol universitario uruguayo
+    # Combinaciones conocidas y validadas (torneo_str, categoria_str, serie_code)
+    # Validadas en vivo el 14/04/2026 para temporada 113
+    KNOWN_CATEGORY_COMBOS = [
+        ("2",  "1",  "A"),      # Mayores Divisional A
+        ("2",  "1",  "AT"),     # Mayores Apertura (temporadas anteriores)
+        ("2",  "1",  "APD"),    # Mayores Clausura (temporadas anteriores)
+        ("2B", "2",  "RS1"),    # Reserva
+        ("20", "20", "20A"),    # Sub-20
+        ("32", "32", "PSB"),    # Presenior / Más 32
+        ("40", "40", "M40S2"),  # Más 40
+    ]
+
+    # Brute-force para descubrir otras series de mayores (torneo_id numérico 1-11, categoria=1)
     SERIE_CODES = [
         "AT", "APD", "BT", "BPD", "CT", "CPD", "DT", "DPD",
         "ET", "EPD", "FT", "FPD", "GT", "GPD", "HT", "HPD",
@@ -521,95 +533,106 @@ def fetch_league_season_data(conn, season: int):
     ]
     TORNEO_IDS = range(1, 12)
 
-    found_any = False
-    for torneo_id in TORNEO_IDS:
-        for serie_code in SERIE_CODES:
-            common = {
-                "temporada": str(season),
-                "deporte":   SPORT_API,
-                "torneo":    str(torneo_id),
-                "categoria": "1",
-                "serie":     serie_code,
-            }
+    def _try_combo(torneo_str: str, categoria_str: str, serie_code: str) -> bool:
+        """Prueba una combinación y guarda los datos si CLT aparece. Retorna True si encontró."""
+        common = {
+            "temporada": str(season),
+            "deporte":   SPORT_API,
+            "torneo":    torneo_str,
+            "categoria": categoria_str,
+            "serie":     serie_code,
+        }
 
-            pos_data = safe_list(api_get_url(BASE_URL_POS, {**common, "action": "cargarPosiciones"}))
-            if not pos_data:
-                continue
+        pos_data = safe_list(api_get_url(BASE_URL_POS, {**common, "action": "cargarPosiciones"}))
+        if not pos_data:
+            return False
 
-            # Ver si CLT está en esta tabla
-            clt_in = any(TEAM in (row.get("Institucion") or "").upper() for row in pos_data)
-            if not clt_in:
-                continue
+        clt_in = any(TEAM in (row.get("Institucion") or "").upper() for row in pos_data)
+        if not clt_in:
+            return False
 
-            found_any = True
-            label = f"T{torneo_id}/{serie_code}"
-            log.info("  [S%d] Liga %s — CLT encontrado (%d equipos)", season, label, len(pos_data))
+        label = f"T{torneo_str}/{serie_code}"
+        log.info("  [S%d] Liga %s — CLT encontrado (%d equipos)", season, label, len(pos_data))
 
-            # Guardar posiciones
+        # Guardar posiciones
+        conn.execute(
+            "DELETE FROM league_standings WHERE season=? AND tournament=? AND series=?",
+            (season, label, label)
+        )
+        for rank, row in enumerate(pos_data, start=1):
+            conn.execute("""
+                INSERT OR REPLACE INTO league_standings
+                    (season, tournament, series, rank, institution, pj, pg, pe, pp, gf, gc, points)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                season, label, label, rank,
+                (row.get("Institucion") or "").strip(),
+                _int(row.get("PJ")), _int(row.get("PG")), _int(row.get("PE")),
+                _int(row.get("PP")), _int(row.get("GF")), _int(row.get("GC")),
+                _int(row.get("Puntos")),
+            ))
+
+        # Goleadores
+        gol_data = safe_list(api_get_url(BASE_URL_GOL, {**common, "action": "cargarPartidos"}))
+        if gol_data:
             conn.execute(
-                "DELETE FROM league_standings WHERE season=? AND tournament=? AND series=?",
+                "DELETE FROM league_scorers WHERE season=? AND tournament=? AND series=?",
                 (season, label, label)
             )
-            for rank, row in enumerate(pos_data, start=1):
+            for row in gol_data:
                 conn.execute("""
-                    INSERT OR REPLACE INTO league_standings
-                        (season, tournament, series, rank, institution, pj, pg, pe, pp, gf, gc, points)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                    INSERT OR REPLACE INTO league_scorers
+                        (season, tournament, series, player_name, institution, goals)
+                    VALUES (?,?,?,?,?,?)
                 """, (
-                    season, label, label, rank,
+                    season, label, label,
+                    (row.get("Jugador") or "").strip(),
                     (row.get("Institucion") or "").strip(),
-                    _int(row.get("PJ")), _int(row.get("PG")), _int(row.get("PE")),
-                    _int(row.get("PP")), _int(row.get("GF")), _int(row.get("GC")),
-                    _int(row.get("Puntos")),
+                    _int(row.get("goles")),
                 ))
+            log.info("    ↳ goleadores: %d", len(gol_data))
 
-            # Goleadores
-            gol_data = safe_list(api_get_url(BASE_URL_GOL, {**common, "action": "cargarPartidos"}))
-            if gol_data:
-                conn.execute(
-                    "DELETE FROM league_scorers WHERE season=? AND tournament=? AND series=?",
-                    (season, label, label)
-                )
-                for row in gol_data:
-                    conn.execute("""
-                        INSERT OR REPLACE INTO league_scorers
-                            (season, tournament, series, player_name, institution, goals)
-                        VALUES (?,?,?,?,?,?)
-                    """, (
-                        season, label, label,
-                        (row.get("Jugador") or "").strip(),
-                        (row.get("Institucion") or "").strip(),
-                        _int(row.get("goles")),
-                    ))
-                log.info("    ↳ goleadores: %d", len(gol_data))
+        # Valla
+        valla_data = safe_list(api_get_url(BASE_URL_VALLA, {**common, "action": "cargarPartidos"}))
+        if valla_data:
+            conn.execute(
+                "DELETE FROM league_goalkeepers WHERE season=? AND tournament=? AND series=?",
+                (season, label, label)
+            )
+            for row in valla_data:
+                gr  = _int(row.get("GR"))
+                pts = _int(row.get("partidos"))
+                try:
+                    avg = float(row.get("ppp") or 0)
+                except (TypeError, ValueError):
+                    avg = (gr / pts) if pts else 0.0
+                conn.execute("""
+                    INSERT OR REPLACE INTO league_goalkeepers
+                        (season, tournament, series, player_name, institution, goals_received, matches, avg_per_match)
+                    VALUES (?,?,?,?,?,?,?,?)
+                """, (
+                    season, label, label,
+                    (row.get("Jugador") or "").strip(),
+                    (row.get("Institución") or row.get("Institucion") or "").strip(),
+                    gr, pts, round(avg, 4),
+                ))
+            log.info("    ↳ valla: %d", len(valla_data))
 
-            # Valla
-            valla_data = safe_list(api_get_url(BASE_URL_VALLA, {**common, "action": "cargarPartidos"}))
-            if valla_data:
-                conn.execute(
-                    "DELETE FROM league_goalkeepers WHERE season=? AND tournament=? AND series=?",
-                    (season, label, label)
-                )
-                for row in valla_data:
-                    gr  = _int(row.get("GR"))
-                    pts = _int(row.get("partidos"))
-                    try:
-                        avg = float(row.get("ppp") or 0)
-                    except (TypeError, ValueError):
-                        avg = (gr / pts) if pts else 0.0
-                    conn.execute("""
-                        INSERT OR REPLACE INTO league_goalkeepers
-                            (season, tournament, series, player_name, institution, goals_received, matches, avg_per_match)
-                        VALUES (?,?,?,?,?,?,?,?)
-                    """, (
-                        season, label, label,
-                        (row.get("Jugador") or "").strip(),
-                        (row.get("Institución") or row.get("Institucion") or "").strip(),
-                        gr, pts, round(avg, 4),
-                    ))
-                log.info("    ↳ valla: %d", len(valla_data))
+        conn.commit()
+        return True
 
-            conn.commit()
+    found_any = False
+
+    # 1) Probar primero los combos conocidos (categorías no-mayores que el brute-force no cubre)
+    for torneo_str, categoria_str, serie_code in KNOWN_CATEGORY_COMBOS:
+        if _try_combo(torneo_str, categoria_str, serie_code):
+            found_any = True
+
+    # 2) Brute-force para mayores (torneo_id 1-11, categoria=1) — descubre series desconocidas
+    for torneo_id in TORNEO_IDS:
+        for serie_code in SERIE_CODES:
+            if _try_combo(str(torneo_id), "1", serie_code):
+                found_any = True
 
     if not found_any:
         log.debug("  [S%d] No se encontraron tablas de liga con CLT", season)
