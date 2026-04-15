@@ -72,6 +72,86 @@ const SECTIONS: { id: Section; label: string; icon: typeof Calendar }[] = [
   { id: "fixtures",   label: "Próximos",    icon: Calendar },
 ]
 
+// ── Result card (mobile-friendly) ────────────────────────────────────────────
+
+function ResultCard({
+  match,
+  categoryLabel,
+  onClick,
+}: {
+  match: Match
+  categoryLabel: string
+  onClick: () => void
+}) {
+  const opp = rival(match)
+  const isHome = match.clt_side === "home"
+  const homeName = isHome ? "CLT" : toProperCase(opp)
+  const awayName = isHome ? toProperCase(opp) : "CLT"
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full rounded-xl border px-3 py-3 sm:px-4 text-left hover:shadow-sm transition-shadow group block"
+      style={{ borderColor: "#F0E8DF", backgroundColor: "white" }}
+    >
+      {/* Top meta row: category | result + home/away + chevron */}
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span
+          className="text-[10px] font-bold uppercase tracking-wide truncate"
+          style={{ color: "#6B2D2D" }}
+        >
+          {categoryLabel}
+        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span
+            className="text-[10px] font-medium flex items-center gap-0.5 px-1.5 py-0.5 rounded"
+            style={{
+              backgroundColor: isHome ? "#E8F5E9" : "#FFF3E0",
+              color: isHome ? "#2E7D32" : "#E65100",
+            }}
+          >
+            {isHome ? <Home size={9} /> : <Plane size={9} />}
+            {isHome ? "Local" : "Visit."}
+          </span>
+          <ResultBadge result={match.result} size="sm" />
+          <ChevronRight
+            size={14}
+            className="text-gray-300 group-hover:text-gray-500 transition-colors"
+          />
+        </div>
+      </div>
+
+      {/* Teams + score — each team gets its own column so long names can wrap */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        <span
+          className="text-sm font-semibold text-right leading-tight break-words"
+          style={{ color: "#3A1A1A" }}
+        >
+          {homeName}
+        </span>
+        <span
+          className="text-base font-bold tabular-nums whitespace-nowrap px-2"
+          style={{ color: "#6B2D2D" }}
+        >
+          {match.score_home ?? "?"}-{match.score_away ?? "?"}
+        </span>
+        <span
+          className="text-sm font-semibold text-left leading-tight break-words"
+          style={{ color: "#3A1A1A" }}
+        >
+          {awayName}
+        </span>
+      </div>
+
+      {/* Date row */}
+      <div className="mt-2 text-[11px] text-gray-400 flex items-center gap-1">
+        <Calendar size={10} />
+        {formatDate(match.datetime)}
+      </div>
+    </button>
+  )
+}
+
 // ── Standings table ───────────────────────────────────────────────────────────
 
 function StandingsTable({ ctx }: { ctx: SeriesLeagueContext }) {
@@ -318,7 +398,7 @@ export default function ActualidadPage() {
                       return (
                         <div
                           key={m.fecha}
-                          className={`rounded-xl border px-4 py-3 flex items-center gap-3 transition-all ${
+                          className={`rounded-xl border px-3 py-3 sm:px-4 transition-all ${
                             isNext ? "ring-2 shadow-sm" : isPlayed ? "opacity-60" : ""
                           }`}
                           style={{
@@ -326,41 +406,18 @@ export default function ActualidadPage() {
                             backgroundColor: isNext ? "#FFFCF5" : "white",
                           }}
                         >
-                          <div
-                            className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
-                            style={{
-                              backgroundColor: isNext ? "#D4A843" : "#F5F0E8",
-                              color: isNext ? "white" : "#6B2D2D",
-                            }}
-                          >
-                            {m.fecha}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-semibold truncate" style={{ color: "#3A1A1A" }}>
-                                {m.home ? "CLT" : toProperCase(m.opponent)}
-                              </span>
-                              {hasScore ? (
-                                <span className="text-xs font-bold px-1.5 py-0.5 rounded"
-                                  style={{ color: resultColor, backgroundColor: resultColor + "22" }}>
-                                  {m.score_home}-{m.score_away}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-gray-400">vs</span>
-                              )}
-                              <span className="text-sm font-semibold truncate" style={{ color: "#3A1A1A" }}>
-                                {m.home ? toProperCase(m.opponent) : "CLT"}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <span className="text-[11px] text-gray-400 flex items-center gap-1">
-                                <Calendar size={10} />
-                                {formatDateLong(m.date)}
-                                {m.time && <span className="ml-0.5">· {m.time}</span>}
-                                {!isPlayed && m.venue && m.venue.toUpperCase() !== "CANCHA A FIJAR" && (
-                                  <span className="ml-0.5">· {toProperCase(m.venue)}</span>
-                                )}
-                              </span>
+                          {/* Top row: fecha number + home/away + badges */}
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div
+                                className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
+                                style={{
+                                  backgroundColor: isNext ? "#D4A843" : "#F5F0E8",
+                                  color: isNext ? "white" : "#6B2D2D",
+                                }}
+                              >
+                                {m.fecha}
+                              </div>
                               <span
                                 className="text-[10px] font-medium flex items-center gap-0.5 px-1.5 py-0.5 rounded"
                                 style={{
@@ -371,15 +428,51 @@ export default function ActualidadPage() {
                                 {m.home ? <Home size={9} /> : <Plane size={9} />}
                                 {m.home ? "Local" : "Visitante"}
                               </span>
-                              {isNext && (
-                                <span
-                                  className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                                  style={{ backgroundColor: "#D4A843", color: "white" }}
-                                >
-                                  PRÓXIMO
-                                </span>
-                              )}
                             </div>
+                            {isNext && (
+                              <span
+                                className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                                style={{ backgroundColor: "#D4A843", color: "white" }}
+                              >
+                                PRÓXIMO
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Teams + score — full-width grid so long names wrap */}
+                          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                            <span
+                              className="text-sm font-semibold text-right leading-tight break-words"
+                              style={{ color: "#3A1A1A" }}
+                            >
+                              {m.home ? "CLT" : toProperCase(m.opponent)}
+                            </span>
+                            {hasScore ? (
+                              <span
+                                className="text-sm font-bold tabular-nums whitespace-nowrap px-2 py-0.5 rounded"
+                                style={{ color: resultColor, backgroundColor: resultColor + "22" }}
+                              >
+                                {m.score_home}-{m.score_away}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400 px-2">vs</span>
+                            )}
+                            <span
+                              className="text-sm font-semibold text-left leading-tight break-words"
+                              style={{ color: "#3A1A1A" }}
+                            >
+                              {m.home ? toProperCase(m.opponent) : "CLT"}
+                            </span>
+                          </div>
+
+                          {/* Date / time / venue */}
+                          <div className="mt-2 text-[11px] text-gray-400 flex items-center gap-1 flex-wrap">
+                            <Calendar size={10} />
+                            <span>{formatDateLong(m.date)}</span>
+                            {m.time && <span>· {m.time}</span>}
+                            {!isPlayed && m.venue && m.venue.toUpperCase() !== "CANCHA A FIJAR" && (
+                              <span className="truncate">· {toProperCase(m.venue)}</span>
+                            )}
                           </div>
                         </div>
                       )
@@ -500,55 +593,13 @@ export default function ActualidadPage() {
                   {leagueSeries.map(ctx => {
                     const lastMatch = lastMatchForLabel(ctx.label)
                     if (!lastMatch) return null
-                    const opp = rival(lastMatch)
-                    const isHome = lastMatch.clt_side === "home"
                     return (
-                      <button
+                      <ResultCard
                         key={ctx.label}
+                        match={lastMatch}
+                        categoryLabel={labelName(ctx.label)}
                         onClick={() => openMatchModal(lastMatch)}
-                        className="w-full rounded-xl border px-4 py-3 flex items-center gap-3 text-left hover:shadow-sm transition-shadow group"
-                        style={{ borderColor: "#F0E8DF", backgroundColor: "white" }}
-                      >
-                        <div className="flex-shrink-0 text-center w-14">
-                          <span className="text-[10px] font-bold uppercase tracking-wide block" style={{ color: "#6B2D2D" }}>
-                            {labelName(ctx.label)}
-                          </span>
-                        </div>
-
-                        <div className="w-px self-stretch" style={{ backgroundColor: "#F0E8DF" }} />
-
-                        <ResultBadge result={lastMatch.result} />
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-semibold truncate" style={{ color: "#3A1A1A" }}>
-                              {isHome ? "CLT" : toProperCase(opp)}
-                            </span>
-                            <span className="text-xs font-bold" style={{ color: "#6B2D2D" }}>
-                              {lastMatch.score_home ?? "?"} - {lastMatch.score_away ?? "?"}
-                            </span>
-                            <span className="text-sm font-semibold truncate" style={{ color: "#3A1A1A" }}>
-                              {isHome ? toProperCase(opp) : "CLT"}
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5">
-                            <Calendar size={10} />
-                            {formatDate(lastMatch.datetime)}
-                            <span
-                              className="text-[10px] font-medium flex items-center gap-0.5 px-1.5 py-0.5 rounded ml-1"
-                              style={{
-                                backgroundColor: isHome ? "#E8F5E9" : "#FFF3E0",
-                                color: isHome ? "#2E7D32" : "#E65100",
-                              }}
-                            >
-                              {isHome ? <Home size={9} /> : <Plane size={9} />}
-                              {isHome ? "Local" : "Visit."}
-                            </span>
-                          </span>
-                        </div>
-
-                        <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500 transition-colors flex-shrink-0" />
-                      </button>
+                      />
                     )
                   })}
 
@@ -556,48 +607,14 @@ export default function ActualidadPage() {
                   {season113Matches
                     .filter(m => !Object.keys(TOURNAMENT_TO_LABEL).includes(m.tournament))
                     .slice(0, 5)
-                    .map(m => {
-                      const opp = rival(m)
-                      const isHome = m.clt_side === "home"
-                      return (
-                        <button
-                          key={m.id}
-                          onClick={() => openMatchModal(m)}
-                          className="w-full rounded-xl border px-4 py-3 flex items-center gap-3 text-left hover:shadow-sm transition-shadow group"
-                          style={{ borderColor: "#F0E8DF", backgroundColor: "white" }}
-                        >
-                          <div className="flex-shrink-0 text-center w-14">
-                            <span className="text-[10px] font-bold uppercase tracking-wide block truncate" style={{ color: "#6B2D2D" }}>
-                              {toProperCase(m.tournament)}
-                            </span>
-                          </div>
-
-                          <div className="w-px self-stretch" style={{ backgroundColor: "#F0E8DF" }} />
-
-                          <ResultBadge result={m.result} />
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-semibold truncate" style={{ color: "#3A1A1A" }}>
-                                {isHome ? "CLT" : toProperCase(opp)}
-                              </span>
-                              <span className="text-xs font-bold" style={{ color: "#6B2D2D" }}>
-                                {m.score_home ?? "?"} - {m.score_away ?? "?"}
-                              </span>
-                              <span className="text-sm font-semibold truncate" style={{ color: "#3A1A1A" }}>
-                                {isHome ? toProperCase(opp) : "CLT"}
-                              </span>
-                            </div>
-                            <span className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5">
-                              <Calendar size={10} />
-                              {formatDate(m.datetime)}
-                            </span>
-                          </div>
-
-                          <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500 transition-colors flex-shrink-0" />
-                        </button>
-                      )
-                    })}
+                    .map(m => (
+                      <ResultCard
+                        key={m.id}
+                        match={m}
+                        categoryLabel={toProperCase(m.tournament)}
+                        onClick={() => openMatchModal(m)}
+                      />
+                    ))}
                 </div>
               )}
             </div>
