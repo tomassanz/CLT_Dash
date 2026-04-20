@@ -162,6 +162,7 @@ export interface FixtureMatchLive {
   score_away?: number
   time?: string
   venue?: string
+  tentative?: boolean
 }
 
 export interface FixtureCategoryLive {

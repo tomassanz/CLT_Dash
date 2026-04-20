@@ -49,20 +49,20 @@ Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
 | **GitHub repo** | ✅ Público | https://github.com/tomassanz/CLT_Dash |
 | **GitHub Pages (backup)** | ✅ Live | https://tomassanz.github.io/CLT_Dash/ — mirror automático |
 | **Static export** | ✅ Listo | `output: "export"` — 0 edge requests en Vercel |
-| **APIs de liga (Sistema B)** | ✅ En producción | Tablas T113: Mayores, Reserva, Sub-20, Presenior, Más 40 |
+| **APIs de liga (Sistema B)** | ✅ En producción | Tablas T113: Mayores, Reserva, Sub-20, Sub-18, Sub-16, Sub-14, Presenior, Más 40 |
 | **Modal de partido** | ✅ Listo | `MatchModal.tsx` con flechas ← → para navegar entre partidos filtrados |
 | **Página Jugadores mejorada** | ✅ Listo | Filtros de rol/goles/tarjetas, modal con flechas, jugador en URL |
-| **Datos T113** | ✅ Completos | 5 partidos primera fecha (may, res, s20, pre, +40) + tablas de posiciones |
+| **Datos T113** | ✅ Completos | 8 categorías (may, res, s20, s18, s16, s14, pre, +40) + tablas de posiciones |
 | **Actualidad — Resultados** | ✅ Listo | Cards por categoría: último resultado (sin posición en tabla) |
-| **Actualidad — Tablas** | ✅ Listo | Standings completos con CLT resaltado + goleadores, tabs por categoría (Mayores, Reserva, Sub-20, Presenior, Más 40) |
-| **Actualidad — Próximos (fixtures live)** | ✅ Listo | `fixtures_live.json` generado por `json_generator.py` desde APIs Sistema B. 5 categorías, 15 partidos c/u. Muestra marcador si jugado, cancha si confirmada, badge PRÓXIMO. Sin fetches desde el browser. |
+| **Actualidad — Tablas** | ✅ Listo | Standings completos con CLT resaltado + goleadores, tabs por categoría (8 categorías) |
+| **Actualidad — Próximos (fixtures live)** | ✅ Listo | `fixtures_live.json` generado por `json_generator.py` desde APIs Sistema B. 8 categorías. Sub-18/16/14 con vuelta tentativa (ida_vuelta). Muestra marcador si jugado, cancha si confirmada, badge PRÓXIMO. Partidos tentativos atenuados con borde punteado. |
 
 ### ⏳ Pendiente
 
 | Tarea | Prioridad | Detalle |
 |---|---|---|
 | **GitHub Actions (cron semanal)** | 🔴 Próxima instancia | `.github/workflows/update.yml`. Corre `extractor.py --incremental` + `json_generator.py` cada domingo y hace push automático. El `json_generator.py` ya incluye fixtures_live al final. |
-| **Fixtures: Sub-18, Sub-16, Sub-14** | 🟢 Cuando estén los datos | La API devuelve vacío por ahora. Cuando tengan datos, agregar sus combos a `FIXTURE_CATEGORIES` en `json_generator.py` y sacarlos de `PENDING_CATEGORIES` en `actualidad/page.tsx`. |
+| **Fixtures juveniles: vuelta real** | 🟢 Cuando la liga los cargue | Sub-18/16/14 tienen vuelta tentativa generada. Cuando la liga cargue los partidos de vuelta en la API, el próximo `json_generator.py` los reemplazará automáticamente (los tentativos desaparecen porque el rival aparecerá con ambas localías). |
 | **Fixtures: partidos suspendidos/reprogramados** | 🟡 Futuro | Como fixtures_live viene directo de la API, si la liga actualiza la fecha de un partido reprogramado, se refleja automáticamente en el próximo `json_generator.py`. No hay problema de sync como había con el JSON estático. |
 
 ### Hosting y deploy
@@ -240,15 +240,21 @@ En temporada 112 confirmado: `torneo=2, serie=AT` y `torneo=2, serie=A` tienen C
 
 **⚠️ IMPORTANTE — Cada categoría usa su propio `categoria` (no siempre es `1`):**
 
-**Combos validados en vivo el 14/04/2026 para temporada 113:**
+**Combos validados en vivo para temporada 113:**
 
-| Categoría | torneo | categoria | serie | Label en DB |
-|-----------|--------|-----------|-------|-------------|
-| Mayores Div A | `2` | `1` | `A` | `T2/A` |
-| Reserva | `2B` | `2` | `RS1` | `T2B/RS1` |
-| Sub-20 Div A | `20` | `20` | `20A` | `T20/20A` |
-| Presenior Div B | `32` | `32` | `PSB` | `T32/PSB` |
-| Más 40 Div B | `40` | `40` | `M40S2` | `T40/M40S2` |
+| Categoría | torneo | categoria | serie | Label en DB | Validado |
+|-----------|--------|-----------|-------|-------------|----------|
+| Mayores Div A | `2` | `1` | `A` | `T2/A` | 14/04/2026 |
+| Reserva | `2B` | `2` | `RS1` | `T2B/RS1` | 14/04/2026 |
+| Sub-20 Div A | `20` | `20` | `20A` | `T20/20A` | 14/04/2026 |
+| Sub-18 Div 3 | `18` | `18` | `18-3-` | `T18/18-3-` | 20/04/2026 |
+| Sub-16 Div 3 | `16` | `16` | `16-3-` | `T16/16-3-` | 20/04/2026 |
+| Sub-14 Serie 1 | `14` | `14` | `S14S1` | `T14/S14S1` | 20/04/2026 |
+| Presenior Div B | `32` | `32` | `PSB` | `T32/PSB` | 14/04/2026 |
+| Más 40 Div B | `40` | `40` | `M40S2` | `T40/M40S2` | 14/04/2026 |
+
+**Nota Sub-16:** CLT no aparece en posiciones (no jugó en fecha 1 — solo 4 equipos del grupo jugaron), pero sí en `/partidos/` como próximo.
+**Nota Sub-14:** la serie usa código `S14S1` (no `14-N-` como las demás). Sin resultados todavía, 12 equipos.
 
 El scraper (`fetch_league_season_data`) tiene `KNOWN_CATEGORY_COMBOS` con estos valores. Se prueban primero antes del brute-force de mayores.
 
@@ -262,13 +268,16 @@ Combina `resultados/api.php` (partidos jugados, con marcador) + `partidos/api.ph
 
 **Categorías en `FIXTURE_CATEGORIES` (json_generator.py):**
 
-| id | name | torneo | categoria | serie |
-|----|------|--------|-----------|-------|
-| `mayores` | Mayores | `2` | `1` | `A` |
-| `reserva` | Reserva | `2B` | `2` | `RS1` |
-| `sub20` | Sub-20 | `20` | `20` | `20A` |
-| `presenior` | Presenior | `32` | `32` | `PSB` |
-| `mas40` | Más 40 | `40` | `40` | `M40S2` |
+| id | name | torneo | categoria | serie | ida_vuelta |
+|----|------|--------|-----------|-------|------------|
+| `mayores` | Mayores | `2` | `1` | `A` | No |
+| `reserva` | Reserva | `2B` | `2` | `RS1` | No |
+| `sub20` | Sub-20 | `20` | `20` | `20A` | No |
+| `sub18` | Sub-18 | `18` | `18` | `18-3-` | Sí |
+| `sub16` | Sub-16 | `16` | `16` | `16-3-` | Sí |
+| `sub14` | Sub-14 | `14` | `14` | `S14S1` | Sí |
+| `presenior` | Presenior | `32` | `32` | `PSB` | No |
+| `mas40` | Más 40 | `40` | `40` | `M40S2` | No |
 
 **Campos por partido:**
 ```json
@@ -283,10 +292,11 @@ Combina `resultados/api.php` (partidos jugados, con marcador) + `partidos/api.ph
 }
 ```
 Para partidos jugados se agregan: `"played": true, "score_home": 1, "score_away": 4`
+Para partidos de vuelta tentativos: `"tentative": true` — generados invirtiendo la localía cuando la API solo tiene ida. Se muestran atenuados con borde punteado y "2ª Rueda (fecha a confirmar)".
 
 **Nota importante:** `score_home`/`score_away` son siempre **local/visitante del partido** (igual que `matches.json`), NO goles de CLT. El frontend calcula el resultado de CLT a partir de `home: true/false`.
 
-**Sub-18, Sub-16, Sub-14:** la API devuelve vacío por ahora. Cuando tengan datos, agregar a `FIXTURE_CATEGORIES` en `json_generator.py` y sacar de `PENDING_CATEGORIES` en `actualidad/page.tsx`.
+**Categorías juveniles (Sub-18/16/14):** tienen `ida_vuelta: True` en `FIXTURE_CATEGORIES`. El generador crea partidos de vuelta tentativos (invirtiendo localía) cuando la API solo tiene ida. Los tentativos se reemplazan automáticamente cuando la liga los carga en la API.
 
 #### Los 5 endpoints del Sistema B
 

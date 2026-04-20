@@ -75,7 +75,8 @@ SISTEMA B (Estadísticas)
 | **Parámetro `torneo`** | Nombre exacto string | ID numérico |
 | **Parámetro `serie`** | Nombre string | Código corto |
 | **Descubrimiento params** | Cascada automática | Manual (probar códigos) |
-| **Datos históricos** | ✅ Sí (2003–2025) | ❌ Solo temporada activa |
+| **Datos históricos** | ✅ Sí (2003–2025) | ⚠️ Solo desde temporada 109 (~2022) |
+| **Categorías cubiertas** | Todas (Mayores, Sub-20, etc.) | Todas las categorías: Mayores, Reserva, Sub-20, Sub-18, Sub-16, Pre-Senior, Más de 40, Más de 48, Copa |
 | **Detalles alineación** | ✅ Sí (titulares, cambios) | ❌ No |
 | **Goles con detalles** | ✅ Sí (minuto, jugador) | ❌ Solo resumen |
 | **Disciplina detallada** | ⚠️ Parcial (solo nombres) | ❌ No |
@@ -206,21 +207,21 @@ Imposible — solo temporada activa
 - ✅ Detalles de alineación y cambios
 - ✅ Goles con minuto exacto
 - ✅ Historiales completos de jugadores
-- ✅ Datos de temporadas antiguas
+- ✅ Datos de cualquier partido (antiguo o reciente)
 - ✅ Toda la información de un partido específico
 
 ### Usa Sistema B SI necesitas:
-- ✅ Tabla de posiciones actual
-- ✅ Top goleadores de la temporada
+- ✅ Tabla de posiciones del torneo
+- ✅ Top goleadores del torneo
 - ✅ Estadísticas de arqueros (valla menos vencida)
 - ✅ Próximos partidos
-- ✅ Resultados rápidos de una serie/torneo
+- ✅ Resultados de una serie/torneo en 1 request
 
 ### Usa AMBOS SI necesitas:
-- ✅ Dashboard "completo" (historia + actualidad)
-  - Sistema A: detalles históricos
-  - Sistema B: tabla y rankings actuales
-- ✅ Página de partido con detalles (Sistema A) + contexto de liga (Sistema B)
+- ✅ Dashboard "completo" (detalle de partidos + contexto de liga)
+  - Sistema A: alineaciones, goles, historial de jugadores
+  - Sistema B: tabla y rankings de la temporada activa
+- ✅ Página de partido con detalles (Sistema A) + posición en la tabla (Sistema B)
 
 ---
 
@@ -276,10 +277,12 @@ Imposible — solo temporada activa
 
 | Limitación | Problema | Workaround |
 |---|---|---|
-| Solo temporada activa | Sin histórico | Usar Sistema A o guardar snapshots |
-| Descubrimiento manual de códigos | `torneo` y `serie` ocultos | Ejecutar map_all_apis.py periódicamente |
+| Datos solo desde temporada 109 (~2022) | Sin datos para temporadas anteriores | Usar Sistema A para historial completo |
+| Descubrimiento manual de códigos | `torneo` y `serie` ocultos | Consultar `config.json` (ver abajo) |
 | Sin detalles de partidos | No sé alineaciones | Usar Sistema A para esos datos |
 | `partidos` devuelve `[]` si temporada terminada | Próximos partidos solo si activa | Validar primero si temporada activa |
+
+**Workaround para descubrimiento de parámetros:** `https://ligauniversitaria.org.uy/config/config.json` lista las ~270 combinaciones válidas de `Temporada`/`Deporte`/`Torneo`/`Categoria`/`Serie`. Consultarlo antes de adivinar códigos.
 
 ---
 
@@ -293,7 +296,7 @@ Imposible — solo temporada activa
             ┌────────┴────────┐
             ↓                 ↓
       Sistema A           Sistema B
-      (históricos)        (actuales)
+  (detalle de partido) (estadísticas de liga)
             ↓                 ↓
    ┌──────────────┐  ┌──────────────┐
    │ Detalles     │  │ Tabla        │

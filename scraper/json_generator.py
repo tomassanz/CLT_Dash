@@ -385,6 +385,12 @@ FIXTURE_CATEGORIES = [
      "torneo": "2B", "categoria": "2",  "serie": "RS1"},
     {"id": "sub20",     "name": "Sub-20",    "division": "Divisional A", "copa": "Copa Perifar",
      "torneo": "20", "categoria": "20", "serie": "20A"},
+    {"id": "sub18",     "name": "Sub-18",    "division": "Divisional 3", "copa": "",
+     "torneo": "18", "categoria": "18", "serie": "18-3-", "ida_vuelta": True},
+    {"id": "sub16",     "name": "Sub-16",    "division": "Divisional 3", "copa": "",
+     "torneo": "16", "categoria": "16", "serie": "16-3-", "ida_vuelta": True},
+    {"id": "sub14",     "name": "Sub-14",    "division": "Serie 1", "copa": "",
+     "torneo": "14", "categoria": "14", "serie": "S14S1", "ida_vuelta": True},
     {"id": "presenior", "name": "Presenior", "division": "Divisional B", "copa": "Copa Summum",
      "torneo": "32", "categoria": "32", "serie": "PSB"},
     {"id": "mas40",     "name": "Más 40",   "division": "Divisional B", "copa": "",
@@ -482,17 +488,52 @@ def _fetch_category_fixtures(cat: dict, season: int) -> dict:
             **({"venue": u.get("Cancha")} if u.get("Cancha") else {}),
         })
 
+    # Detectar partidos de vuelta faltantes — solo para categorías con ida_vuelta
+    # (juveniles). Si un rival solo aparece con una localía, generar el partido
+    # inverso como tentativo (la liga carga ida primero y luego agrega vuelta).
+    opponents_home = {m["opponent"].upper() for m in matches if m["home"]}
+    opponents_away = {m["opponent"].upper() for m in matches if not m["home"]}
+    missing_return = []
+    if cat.get("ida_vuelta"):
+        seen = set()
+        for m in matches:
+            opp = m["opponent"].upper()
+            if opp in seen:
+                continue
+            seen.add(opp)
+            if m["home"] and opp not in opponents_away:
+                missing_return.append({"opponent": m["opponent"], "home": False, "tentative": True})
+            elif not m["home"] and opp not in opponents_home:
+                missing_return.append({"opponent": m["opponent"], "home": True, "tentative": True})
+
+    if missing_return:
+        # Estimar fechas: continuar después del último partido conocido, una semana entre cada uno
+        last_date = max(m["date"] for m in matches if m["date"])
+        from datetime import timedelta
+        base = datetime.strptime(last_date, "%Y-%m-%d")
+        for i, mr in enumerate(missing_return, start=1):
+            est_date = base + timedelta(weeks=i)
+            matches.append({
+                "date":      est_date.strftime("%Y-%m-%d"),
+                "opponent":  mr["opponent"],
+                "home":      mr["home"],
+                "played":    False,
+                "tentative": True,
+            })
+
     # Ordenar por fecha y asignar número de fecha secuencial
     matches.sort(key=lambda m: m["date"])
     for i, m in enumerate(matches, start=1):
         m["fecha"] = i
+
+    has_return = any(m.get("tentative") for m in matches)
 
     return {
         "id":       cat["id"],
         "name":     cat["name"],
         "division": cat["division"],
         "copa":     cat["copa"],
-        "round":    "1ª Rueda",
+        "round":    "Ida y Vuelta" if has_return else "1ª Rueda",
         "matches":  matches,
     }
 

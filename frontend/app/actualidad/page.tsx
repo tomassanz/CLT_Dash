@@ -10,11 +10,11 @@ import MatchModal from "@/components/MatchModal"
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const CATEGORY_ORDER = ["mayores", "reserva", "presenior", "mas40", "sub20", "sub18", "sub16", "sub14"]
-const PENDING_CATEGORIES = ["Sub-14"]
+const PENDING_CATEGORIES: string[] = []
 const CURRENT_SEASON = 113
 
 // IDs de categorías cubiertas por fixtures_live.json (para no mostrarlas como pendientes)
-const LIVE_CATEGORY_IDS = new Set(["mayores", "reserva", "sub20", "presenior", "mas40"])
+const LIVE_CATEGORY_IDS = new Set(["mayores", "reserva", "sub20", "sub18", "sub16", "sub14", "presenior", "mas40"])
 
 type Section = "fixtures" | "tablas" | "resultados"
 
@@ -32,8 +32,11 @@ const LABEL_META: Record<string, { name: string; order: number }> = {
   "T2/AT":      { name: "Mayores",   order: 0 },
   "T2B/RS1":    { name: "Reserva",   order: 1 },
   "T20/20A":    { name: "Sub-20",    order: 2 },
-  "T32/PSB":    { name: "Presenior", order: 3 },
-  "T40/M40S2":  { name: "Más 40",   order: 4 },
+  "T18/18-3-":  { name: "Sub-18",   order: 3 },
+  "T16/16-3-":  { name: "Sub-16",   order: 4 },
+  "T14/S14S1":  { name: "Sub-14",   order: 5 },
+  "T32/PSB":    { name: "Presenior", order: 6 },
+  "T40/M40S2":  { name: "Más 40",   order: 7 },
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -395,11 +398,13 @@ export default function ActualidadPage() {
                           : "#ca8a04"
                         : undefined
 
+                      const isTentative = m.tentative === true
+
                       return (
                         <div
                           key={m.fecha}
                           className={`rounded-xl border px-3 py-3 sm:px-4 transition-all ${
-                            isNext ? "ring-2 shadow-sm" : isPlayed ? "opacity-60" : ""
+                            isTentative ? "opacity-40 border-dashed" : isNext ? "ring-2 shadow-sm" : isPlayed ? "opacity-60" : ""
                           }`}
                           style={{
                             borderColor: isNext ? "#D4A843" : "#F0E8DF",
@@ -468,10 +473,16 @@ export default function ActualidadPage() {
                           {/* Date / time / venue */}
                           <div className="mt-2 text-[11px] text-gray-400 flex items-center gap-1 flex-wrap">
                             <Calendar size={10} />
-                            <span>{formatDateLong(m.date)}</span>
-                            {m.time && <span>· {m.time}</span>}
-                            {!isPlayed && m.venue && m.venue.toUpperCase() !== "CANCHA A FIJAR" && (
-                              <span className="truncate">· {toProperCase(m.venue)}</span>
+                            {isTentative ? (
+                              <span className="italic">2ª Rueda (fecha a confirmar)</span>
+                            ) : (
+                              <>
+                                <span>{formatDateLong(m.date)}</span>
+                                {m.time && <span>· {m.time}</span>}
+                                {!isPlayed && m.venue && m.venue.toUpperCase() !== "CANCHA A FIJAR" && (
+                                  <span className="truncate">· {toProperCase(m.venue)}</span>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>

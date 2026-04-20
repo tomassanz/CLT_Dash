@@ -521,6 +521,9 @@ def fetch_league_season_data(conn, season: int):
         ("2",  "1",  "APD"),    # Mayores Clausura (temporadas anteriores)
         ("2B", "2",  "RS1"),    # Reserva
         ("20", "20", "20A"),    # Sub-20
+        ("18", "18", "18-3-"),  # Sub-18 Divisional 3
+        ("16", "16", "16-3-"),  # Sub-16 Divisional 3
+        ("14", "14", "S14S1"),  # Sub-14 Serie 1
         ("32", "32", "PSB"),    # Presenior / Más 32
         ("40", "40", "M40S2"),  # Más 40
     ]

@@ -220,12 +220,13 @@ Responde estas preguntas:
 
 ## ⚙️ Herramientas Relacionadas
 
-| Script | Qué hace | Ubicación |
-|--------|----------|-----------|
+| Script / URL | Qué hace | Ubicación |
+|-------------|----------|-----------|
 | `map_all_apis.py` | Genera api_map.json | `scraper/` |
 | `test_api.py` | Test manual y exploración | `scraper/` |
 | `extractor.py` | Extrae datos (usa Sistema A) | `scraper/` |
 | `json_generator.py` | Genera JSONs del dashboard | `scraper/` |
+| `config.json` (URL) | Lista parámetros válidos Sistema B | `https://ligauniversitaria.org.uy/config/config.json` |
 
 ---
 
@@ -234,14 +235,26 @@ Responde estas preguntas:
 ### Sistema A (`detallefechas`)
 - Cascada obligatoria (4-5 requests antes de partidos)
 - **Parámetro:** `deporte=FÚTBOL` (con tilde)
-- Devuelve detalles completos (alineaciones, goles)
-- Datos históricos desde 2003
+- Devuelve detalles de partido (alineaciones, goles, cambios, tarjetas)
+- Funciona para cualquier temporada 2003–2025, incluyendo partidos recientes
 
 ### Sistema B (Estadísticas)
 - Directo, 1 request por endpoint
 - **Parámetro:** `deporte=F` (sin tilde)
-- Devuelve tablas y rankings
-- Solo temporada activa (sin histórico)
+- Devuelve estadísticas de liga (tabla de posiciones, rankings, próximos partidos)
+- Cubre **todas las categorías**: Mayores, Reserva, Sub-20, Sub-18, Sub-16, Pre-Senior, Más de 40, Más de 48, Copa
+- Tiene datos desde temporada 109 (~2022) — sin datos para temporadas anteriores
+
+### config.json — Fuente oficial de parámetros
+
+Para saber exactamente qué combinaciones de `torneo`/`serie`/`categoria` existen para una temporada, sin adivinar:
+
+```
+GET https://ligauniversitaria.org.uy/config/config.json
+```
+
+Devuelve ~270 entradas. Estructura: `{"ID", "Temporada", "Deporte", "Torneo", "Categoria", "Serie"}`.
+Filtrar por `Temporada` y `Deporte` para obtener los parámetros exactos del Sistema B.
 
 ### La regla más importante
 **"FÚTBOL" con tilde = Sistema A**

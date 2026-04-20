@@ -13,40 +13,22 @@
                                      │
                     ┌────────────────┴────────────────┐
                     │                                 │
-                ¿Datos               ¿Datos
-               históricos?           actuales?
-               (2003-2024)          (esta temporada)
-                    │                        │
-        ┌───────────┴───────────┐            │
-        │                       │            │
-   Hace 1+ años          Hace 1-2 semanas    │
-        │                       │            │
-        │           SI ──────→  AMBOS        │
-        │           /            (ver abajo) │
-        │          /                         │
-        NO ◄──────┘                          │
-        │                                    │
-   ¿Qué tipo?                          ¿Qué tipo?
-   ┌───────┬──────────┬─────────┐     ┌──────┬────────────────┬──────────┐
-   │       │          │         │     │      │                │          │
-Detalle  Tabla    Goles      Otro    Tabla Próx.partidos  Rankings  Detalle
-partido  posic.   jugador   dato    posic.  (próximas      (goles,   partido
-   │       │        │         │       │       fechas)       valla)     │
-   │       │        │         │       │         │             │        │
-   ↓       ↓        ↓         ↓       ↓         ↓             ↓        ↓
-  SIS    SIS      SIS       ? Ver   SIS       SIS           SIS        SIS
-   A      A        A       abajo     B         B             B          A
-
-                              ↓
-                        ¿Necesitas
-                       detalles de
-                       alineación?
-                         │    │
-                        SÍ    NO
-                         │    │
-                        ↓    ↓
-                      SIS   SIS
-                       A     B
+             ¿Qué tipo de                    ¿Qué tipo de
+              dato necesito?                 dato necesito?
+                    │                                 │
+   ┌────────────────┼──────────────┐    ┌─────────────┼──────────────┐
+   │                │              │    │             │              │
+Detalle          Historial     Tarjetas  Tabla     Goles del    Próximos
+de un            de un         /disciplina posic.   torneo       partidos
+partido          jugador            │       │      (ranking)        │
+(alineación,     (todos sus         │       │          │            │
+goles, cambios)  partidos)          │       │          │            │
+   │                │               │       ↓          ↓            ↓
+   ↓                ↓               ↓      SIS        SIS          SIS
+  SIS              SIS             SIS      B          B            B
+   A                A               A
+                                          (cualquier temporada)
+(cualquier temporada — incluyendo esta semana)
 
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -57,7 +39,8 @@ partido  posic.   jugador   dato    posic.  (próximas      (goles,   partido
 🔵 SISTEMA A — detallefechas/api.php
 ──────────────────────────────────────────────────────────────────────
 
-  USO: Detalles históricos de partidos, alineaciones, jugadores
+  USO: Detalles de partidos (alineaciones, goles, cambios, disciplina)
+       Funciona para cualquier temporada — incluyendo partidos recientes
 
   PARÁMETROS:
     • action=cargarTorneos|cargarSeries|cargarFechas|cargarPartidos|...
@@ -77,28 +60,45 @@ partido  posic.   jugador   dato    posic.  (próximas      (goles,   partido
 
   EJEMPLOS DE USO:
     ✓ "Dame todos los partidos de CLT de 2023"
-    ✓ "Quiero la alineación de este partido"
+    ✓ "Quiero la alineación de un partido"
     ✓ "¿Cuántos goles hizo Fulano en su carrera?"
     ✓ "Dame el historial completo de CLT"
     ✓ "Quiero las tarjetas amarillas de este jugador"
+    ✓ "¿Cómo salió el partido del fin de semana pasado?"
 
   VELOCIDAD: Lento (5-10 requests antes de obtener detalle)
   DATOS: Completos (alineación, goles, cambios, disciplina parcial)
-  HISTÓRICO: Sí (90-112)
+  TEMPORADAS: 90–112 (todas, incluyendo la activa)
 
 
 🟢 SISTEMA B — {posiciones|goleadores|valla_menos_vencida|resultados|partidos}/api.php
 ──────────────────────────────────────────────────────────────────────────────────────
 
-  USO: Tablas, rankings y contexto de la temporada actual
+  USO: Estadísticas de la liga (tabla de posiciones, rankings, próximos partidos)
+       Solo tiene datos para la temporada activa
 
   PARÁMETROS (iguales para todos):
     • action=cargarPartidos|cargarPosiciones (depende del endpoint)
-    • temporada=112 (solo actual realmente)
+    • temporada=109-112 (solo desde ~2022)
     • deporte=F (⚠️ SIN TILDE)
-    • torneo=2 (mayoristas — ID numérico)
-    • categoria=1 (siempre)
-    • serie=AT|BT|A|B|... (código corto)
+    • torneo=2|2B|20|18|16|32|40|48|1 (ID numérico — ver tabla completa en API_MAP.md)
+    • categoria=<mismo que torneo, excepto 2B usa categoria=2>
+    • serie=AT|RSAT|20AT|... (código corto — depende de la categoría)
+
+  CATEGORÍAS PRINCIPALES:
+    • torneo=2,  cat=1  → Mayores
+    • torneo=2B, cat=2  → Reserva
+    • torneo=20, cat=20 → Sub-20
+    • torneo=18, cat=18 → Sub-18
+    • torneo=16, cat=16 → Sub-16
+    • torneo=32, cat=32 → Pre-Senior
+    • torneo=40, cat=40 → Más de 40
+    • torneo=48, cat=48 → Más de 48
+    • torneo=1,  cat=1  → Copa / Torneo Harmony
+
+  PARA DESCUBRIR PARÁMETROS VÁLIDOS:
+    → GET https://ligauniversitaria.org.uy/config/config.json
+       Devuelve ~270 entradas con Temporada, Deporte, Torneo, Categoria, Serie exactos
 
   ENDPOINTS:
     • posiciones/api.php → Tabla de posiciones
@@ -115,8 +115,8 @@ partido  posic.   jugador   dato    posic.  (próximas      (goles,   partido
     ✓ "Resultados de la última fecha"
 
   VELOCIDAD: Rápido (1 request por tabla)
-  DATOS: Resumidos (tablas, rankings)
-  HISTÓRICO: No (solo temporada activa)
+  DATOS: Estadísticas de liga (tablas, rankings) — para TODAS las categorías (Mayores, Sub-20, Sub-18, Sub-16, Reserva, Pre-Senior, Más de 40, Más de 48, Copa)
+  TEMPORADAS: 109–112 (~2022 en adelante) — sin datos para temporadas anteriores
 
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -125,16 +125,16 @@ partido  posic.   jugador   dato    posic.  (próximas      (goles,   partido
 
   NECESITO...                              SISTEMA    REQUESTS   TIEMPO
   ────────────────────────────────────     ───────    ────────   ──────
-  Tabla de posiciones actual               B          1          <0.5s
-  Top 10 goleadores actuales               B          1          <0.5s
+  Tabla de posiciones del torneo           B          1          <0.5s
+  Top goleadores del torneo                B          1          <0.5s
   Próximos 3 partidos                      B          1          <0.5s
-  Alineación de un partido antiguo          A          5-10       2-5s
-  Cambios y goles de un partido             A          5-10       2-5s
-  Historial completo de un jugador          A          100+       30-120s
-  Dashboard "histórico" (filtros)           A          10-50      5-30s
-  Dashboard "actualidad" (hoy)              B          3          1-2s
-  Dashboard COMPLETO (ambos)                A+B        15-60      10-30s
-  Validar cambios en la API                 A+B        40-60      10-15s
+  Alineación de un partido (cualquier año) A          5-10       2-5s
+  Cambios y goles de un partido            A          5-10       2-5s
+  Historial completo de un jugador         A          100+       30-120s
+  Partidos de CLT con filtros              A          10-50      5-30s
+  Dashboard "actualidad" (hoy)             B          3          1-2s
+  Dashboard COMPLETO (ambos)               A+B        15-60      10-30s
+  Validar cambios en la API                A+B        40-60      10-15s
 
 ```
 
@@ -143,8 +143,8 @@ partido  posic.   jugador   dato    posic.  (próximas      (goles,   partido
 ## 📋 Checklist: Antes de hacer el request
 
 - [ ] ¿Qué información necesito exactamente?
-- [ ] ¿Es histórica (años atrás) o actual (esta semana)?
-- [ ] ¿Necesito detalles o solo números?
+- [ ] ¿Necesito detalle de un partido específico? → Sistema A
+- [ ] ¿Necesito tabla de posiciones / ranking de goleadores del torneo? → Sistema B
 - [ ] ¿Cuántos requests puedo hacer? (rate limit 250ms)
 - [ ] ¿Sistema A o B? (revisar árbol arriba)
 - [ ] Si es A: ¿Qué parámetro `torneo` y `serie` necesito? (cascada)
@@ -155,28 +155,51 @@ partido  posic.   jugador   dato    posic.  (próximas      (goles,   partido
 ## 🔑 Códigos de Serie en Sistema B
 
 ```
-MAYORISTAS (torneo=2):
+MAYORES (torneo=2, cat=1):
   AT = División A, Torneo
   APD = División A, Play-offs, Desempate
   BT = División B, Torneo
   BPD = División B, Play-offs, Desempate
-  CT = División C, Torneo
-  CPD = División C, Play-offs, Desempate
-  ... (DT, DPD, ET, EPD, FT, FPD, GT, GPD)
+  CT, CPD, DT, DPD, ET, EPD, FT, FPD, GT, GPD = otras divisiones
+  A, B, C, D, E, F, G = series simplificadas (alternativas)
 
-ALTERNATIVAS (si no funciona):
-  A, B, C, D, E, F, G = Series simplificadas
+RESERVA (torneo=2B, cat=2):
+  RSAT, RS1, ... (prefijo RS)
+
+SUB-20 (torneo=20, cat=20):
+  20AT, 20A, ...
+
+SUB-18 (torneo=18, cat=18):
+  18-1-, 18-2-, ...
+
+SUB-16 (torneo=16, cat=16):
+  16-1-, 16-2-, ...
+
+PRE-SENIOR (torneo=32, cat=32):
+  PSAT, PSA, ...
+
+MÁS DE 40 (torneo=40, cat=40):
+  M40S1, M40S2, ...
+
+MÁS DE 48 (torneo=48, cat=48):
+  48R1, 48R2, ...
+
+COPA / TORNEO HARMONY (torneo=1, cat=1):
+  THM8, ...
 ```
+
+**Forma más confiable de obtener los códigos exactos:**
+Consultar `https://ligauniversitaria.org.uy/config/config.json` y filtrar por `Temporada` y `Deporte`.
 
 ---
 
 ## ⚠️ Casos Especiales
 
-### "Necesito datos antiguos (2005, 2010, etc.)"
+### "Necesito detalles de un partido (de cualquier año, incluso reciente)"
 ```
 ↓
 SIEMPRE SISTEMA A
-Sistema B no tiene histórico
+Sistema B no tiene detalles de partido (ni de 2005 ni del fin de semana pasado)
 ```
 
 ### "Necesito datos de una serie específica que no conozco"
@@ -187,12 +210,12 @@ Sistema B no tiene histórico
 3. Última opción: corre map_all_apis.py para ver qué hay
 ```
 
-### "Necesito mezclar histórico con tablas actuales"
+### "Necesito mezclar detalles de partidos con tablas del torneo"
 ```
 ↓
 AMBOS SISTEMAS:
-  • Sistema A: historial del jugador/serie
-  • Sistema B: contexto actual (tabla, goleadores)
+  • Sistema A: alineaciones, goles, historial de jugador
+  • Sistema B: tabla de posiciones, goleadores del torneo
   • Combina en el frontend
 ```
 
@@ -254,23 +277,20 @@ COMBINACIÓN:
 ```
                 START
                   │
-        ¿Histórico (hace 1+ año)?
+         ¿Qué tipo de dato?
                  │
          ┌───────┴────────┐
          │                │
-        SÍ                NO
+   Detalle de        Estadísticas
+   un partido        de la liga
+   (quién jugó,      (tabla, goleadores,
+   goles, cambios)   próximos partidos)
          │                │
          ↓                ↓
-    SIS A           ¿Detalles?
-      100%             │
-                  ┌────┴────┐
-                  │         │
-                 SÍ        NO
-                  │         │
-                  ↓         ↓
-               SIS A      SIS B
-               50-200    1-3 req
-              requests
+      SIS A            SIS B
+      5-10 req         1 req
+  (cualquier          (solo
+   temporada)      temporada activa)
 ```
 
 ---

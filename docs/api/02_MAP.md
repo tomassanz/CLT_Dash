@@ -10,8 +10,8 @@ Hay **DOS sistemas completamente independientes** de APIs. Cada uno sirve para c
 
 | Sistema | Propósito | Datos | Estado |
 |---------|-----------|-------|--------|
-| **A** — `detallefechas` | Detalles de partidos históricos | Campeonatos desde 2003, detalles de alineaciones y goles | ✅ Activo |
-| **B** — Estadísticas | Tablas de posiciones y rankings | Posiciones, goleadores, valla (solo temporadas recientes) | ✅ Activo |
+| **A** — `detallefechas` | Detalles de partidos (alineaciones, goles, cambios) | Cualquier temporada 2003–2025, incluyendo partidos recientes | ✅ Activo |
+| **B** — Estadísticas | Estadísticas de la liga (tabla, rankings, próximos partidos) | Temporadas 109–112 (~2022 en adelante) — sin datos anteriores | ✅ Activo |
 
 ---
 
@@ -299,14 +299,56 @@ GET api.php?action=Expulsados Visitante&id=12345
 |-----------|-------|-------|
 | `temporada` | 112 | Número de temporada |
 | `deporte` | `F` | **Sin tilde** — a diferencia del Sistema A |
-| `torneo` | `2` | **ID numérico**, no nombre (`2` = mayoristas) |
-| `serie` | `AT` | **Código corto**, no nombre (`AT` = divA Torneo) |
-| `categoria` | `1` | Siempre `1` (mayores) |
+| `torneo` | `2`, `2B`, `20`, `18`, `16`, `32`, `40`, `48`, `1`... | **ID numérico**, no nombre — ver tabla de categorías abajo |
+| `serie` | `AT`, `RSAT`, `20AT`... | **Código corto**, no nombre — depende de la categoría |
+| `categoria` | igual al `torneo` (excepto `2B` que usa `2`) | Ver tabla de categorías abajo |
 | `action` | Depende | Ver abajo |
 
-**⚠️ IMPORTANTE:** No hay endpoint que devuelva los IDs/códigos disponibles. Hay que descubrirlos probando.
+**⚠️ IMPORTANTE:** No hay endpoint que devuelva los IDs/códigos disponibles. Hay que descubrirlos probando — o consultando el `config.json` (ver sección más abajo).
 
-Códigos de serie conocidos: `AT`, `APD`, `BT`, `BPD`, `CT`, `CPD`, `DT`, `DPD`, `ET`, `EPD`, `FT`, `FPD`, `GT`, `GPD`, `A`, `B`, `C`, `D`, `E`, `F`, `G`
+### Categorías disponibles en fútbol (deporte=F) — confirmadas en T112
+
+| Torneo ID | Categoria | Serie ejemplo | Nombre | Datos en T112 |
+|-----------|-----------|---------------|--------|----------------|
+| `2` | `1` | `AT`, `A`, `BT`... | Mayores | ✅ |
+| `2B` | `2` | `RSAT`, `RS1`... | Reserva | ✅ |
+| `20` | `20` | `20AT`, `20A`... | Sub-20 | ✅ |
+| `18` | `18` | `18-1-`... | Sub-18 | ✅ |
+| `16` | `16` | `16-1-`... | Sub-16 | ✅ |
+| `32` | `32` | `PSAT`, `PSA`... | Pre-Senior | ✅ |
+| `40` | `40` | `M40S1`... | Más de 40 | ✅ |
+| `48` | `48` | `48R1`... | Más de 48 | ✅ |
+| `1` | `1` | `THM8`... | Copa de Campeones / Torneo Harmony | ✅ |
+
+**Otros deportes disponibles:** `deporte=FP` (fútbol playa), `deporte=FS` (futsal), `deporte=F7` (fútbol 7).
+
+### Temporadas con datos en Sistema B
+
+- **T109, T110, T111, T112:** tienen datos ✅
+- **T108 y anteriores:** vacíos ❌
+- **T113:** sin datos aún (temporada no empezada al 22/03/2026)
+
+### Cómo detectar el estado de la temporada
+
+- `resultados/api.php` → partidos ya jugados (con GL y GV). Si devuelve datos → la temporada empezó.
+- `partidos/api.php` → próximos partidos aún no jugados (GL y GV son null). Si devuelve datos → hay fechas por jugar.
+- Si `partidos` devuelve `[]` → la temporada terminó o no empezó aún.
+
+### config.json — Fuente oficial de parámetros disponibles
+
+Existe un archivo público que lista todas las combinaciones válidas de parámetros:
+
+```
+GET https://ligauniversitaria.org.uy/config/config.json
+```
+
+Devuelve un array de ~270 entradas, una por cada sección del sitio de la liga. Estructura:
+
+```json
+{ "ID": "29", "Temporada": "113", "Deporte": "F", "Torneo": "2B", "Categoria": "2", "Serie": "RSAT" }
+```
+
+**Para qué sirve:** en lugar de adivinar qué combinaciones de `torneo`/`serie`/`categoria` existen para una temporada, se puede filtrar este JSON por `Temporada` y `Deporte` y obtener exactamente los parámetros válidos. Esto evita el descubrimiento manual por prueba y error.
 
 ---
 
@@ -597,7 +639,7 @@ action=CambiosLocatario&id=12345
 ### Mostrar tabla y goleadores actuales (vista "Liga")
 
 ```
-// Tabla
+// Tabla (Mayores, Div A)
 GET https://ligauniversitaria.org.uy/posiciones/api.php?
   action=cargarPosiciones&temporada=112&deporte=F&torneo=2&categoria=1&serie=AT
 
@@ -610,7 +652,23 @@ GET https://ligauniversitaria.org.uy/valla_menos_vencida/api.php?
   action=cargarPartidos&temporada=112&deporte=F&torneo=2&categoria=1&serie=AT
 ```
 
-Listo — tres requests para tener tabla, goleadores y estadísticas de arqueros.
+Tres requests para tener tabla, goleadores y estadísticas de arqueros (solo para Mayores/Div A en este ejemplo). El mismo patrón aplica para cualquier otra categoría cambiando `torneo`, `categoria` y `serie`.
+
+### Resultados verificados en T112 para distintas categorías
+
+Confirmado en vivo el 22/03/2026:
+
+| Categoría | torneo | cat | serie | Posiciones | Resultados | Goleadores | Valla |
+|-----------|--------|-----|-------|-----------|------------|------------|-------|
+| Mayores | 2 | 1 | AT | 8 equipos | 28 partidos | 10 jugadores | 10 |
+| Reserva | 2B | 2 | RSAT | 8 equipos | 28 partidos | 5 jugadores | 10 |
+| Sub-20 | 20 | 20 | 20AT | 8 equipos | 28 partidos | 6 jugadores | 10 |
+| Sub-18 | 18 | 18 | 18-1- | 11 equipos | 55 partidos | 9 jugadores | 10 |
+| Sub-16 | 16 | 16 | 16-1- | 12 equipos | 66 partidos | 12 jugadores | 10 |
+| Pre-Senior | 32 | 32 | PSAT | 8 equipos | 28 partidos | 11 jugadores | 10 |
+| Más de 40 | 40 | 40 | M40S1 | 16 equipos | 120 partidos | 8 jugadores | 10 |
+| Más de 48 | 48 | 48 | 48R1 | 10 equipos | 45 partidos | 8 jugadores | 10 |
+| Copa/Harmony | 1 | 1 | THM8 | 16 equipos | 8 partidos | 30 jugadores | 10 |
 
 ---
 
