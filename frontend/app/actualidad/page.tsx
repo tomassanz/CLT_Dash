@@ -23,7 +23,11 @@ const TOURNAMENT_TO_LABEL: Record<string, string> = {
   "Mayores Masculino": "T2/A",
   "RESERVA":           "T2B/RS1",
   "Sub - 20":          "T20/20A",
+  "SUB 18":            "T18/18-3-",
+  "SUB 16":            "T16/16-3-",
+  "SUB14":             "T14/S14S1",
   "PRE SENIOR":        "T32/PSB",
+  "MÁS 40":            "T40/M40S2",
 }
 
 // Nombre legible y orden de display para cada label de liga
@@ -600,30 +604,21 @@ export default function ActualidadPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {/* Per-category result cards */}
-                  {leagueSeries.map(ctx => {
-                    const lastMatch = lastMatchForLabel(ctx.label)
-                    if (!lastMatch) return null
-                    return (
+                  {/* Per-category result cards, ordenados por fecha del último partido */}
+                  {leagueSeries
+                    .map(ctx => ({ ctx, lastMatch: lastMatchForLabel(ctx.label) }))
+                    .filter((x): x is { ctx: SeriesLeagueContext; lastMatch: Match } => x.lastMatch !== null)
+                    .sort((a, b) => {
+                      const da = a.lastMatch.datetime ?? ""
+                      const db = b.lastMatch.datetime ?? ""
+                      return db.localeCompare(da)
+                    })
+                    .map(({ ctx, lastMatch }) => (
                       <ResultCard
                         key={ctx.label}
                         match={lastMatch}
                         categoryLabel={labelName(ctx.label)}
                         onClick={() => openMatchModal(lastMatch)}
-                      />
-                    )
-                  })}
-
-                  {/* Partidos de categorías sin tabla de liga (ej: Más 40) */}
-                  {season113Matches
-                    .filter(m => !Object.keys(TOURNAMENT_TO_LABEL).includes(m.tournament))
-                    .slice(0, 5)
-                    .map(m => (
-                      <ResultCard
-                        key={m.id}
-                        match={m}
-                        categoryLabel={toProperCase(m.tournament)}
-                        onClick={() => openMatchModal(m)}
                       />
                     ))}
                 </div>
