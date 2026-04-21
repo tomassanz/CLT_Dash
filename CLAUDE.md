@@ -12,6 +12,12 @@ Dashboard web público que muestra toda la historia de partidos de fútbol del *
 
 ## Estado actual del proyecto (al 14/04/2026 — actualizado sesión 5)
 
+### 📋 Planes pendientes (NO ejecutar sin coordinar)
+
+| Plan | Archivo | Estado |
+|---|---|---|
+| Newsletter semanal + pop-up de suscripción (MailerLite + GitHub Actions) | [docs/plan_newsletter.md](docs/plan_newsletter.md) | 📝 Aprobado, sin ejecutar. Otra instancia de Claude puede estar trabajando en esto — coordinar antes de tocar. |
+
 ### 📚 Documentación de APIs (NUEVA — Marzo 2026)
 
 **📁 Carpeta completa:** [`docs/api/`](docs/api/)
@@ -519,13 +525,39 @@ Tiene 3 tabs: **Resultados | Tablas | Próximos**
 
 ## Próximos pasos (en orden)
 
-### Paso 1 — GitHub Actions (automatización semanal) 🔴
+### Paso 1 — GitHub Actions (automatización diaria) ✅
 
-Crear `.github/workflows/update.yml` con:
-- Trigger: cron domingo 9am UTC (6am Uruguay) + `workflow_dispatch` (manual)
-- Steps: checkout → python setup → `extractor.py --incremental` → `json_generator.py` → git commit JSONs → git push
-- El SQLite se genera y descarta en el mismo job (nunca se pushea)
-- El cron ya incluye automáticamente la extracción de datos de liga (Sistema B) al final de `process_season`
+**Archivo:** `.github/workflows/update.yml`  
+**Cron:** `30 11 * * *` (08:30 hora Uruguay / 11:30 UTC)  
+**Trigger manual:** también desde Actions → Run workflow (`workflow_dispatch`)
+
+Flujo de la corrida diaria:
+1. Checkout del repo (incluye `scraper/clt.db` versionada).
+2. Setup Python 3.12 + `pip install requests`.
+3. Captura `baseline` = cantidad actual de partidos en `matches.json`.
+4. Corre `extractor.py --incremental` — procesa última temporada + tablas de liga (Sistema B) vía `fetch_league_season_data`.
+5. Corre `json_generator.py` — regenera TODOS los JSONs en `frontend/public/data/` (incluido `fixtures_live.json` desde APIs vivas).
+6. **Health check** (aborta el commit si falla):
+   - `matches.json` es lista no vacía y tiene ≥ baseline partidos.
+   - `last_updated.json` tiene `updated_at` y `latest_season` válidos.
+   - `fixtures_live.json` tiene al menos una categoría con partidos.
+7. `git add scraper/clt.db frontend/public/data` y detecta cambios.
+8. Si hay cambios: commit como `github-actions[bot]` con mensaje `chore(data): actualización automática YYYY-MM-DD` y push a `main`.
+9. Dispara explícitamente `gh-pages.yml` con `gh workflow run` (el push del bot NO dispara workflows por diseño del `GITHUB_TOKEN`).
+
+Vercel redespliega solo con el push a `main` (usa su propia GitHub App, no depende del `GITHUB_TOKEN`).
+
+### Paso 1b — Troubleshooting del cron
+
+| Síntoma | Causa probable | Solución |
+|---|---|---|
+| El workflow falló en "Health check" | API de la liga caída o intermitente | Esperar unas horas y correr manual (Actions → Run workflow) |
+| Corrió pero no hubo commit | No hubo partidos nuevos ni cambios en tablas | Normal entre semana, no hacer nada |
+| Pages no se actualizó | El step `Trigger GitHub Pages rebuild` falló | Correr manual `gh-pages.yml` desde Actions |
+| Vercel no redesplegó | Integration desconectada en Vercel | Revisar Settings → Git en Vercel dashboard |
+| `clt.db` creció mucho | Normal, ~10 KB por partido nuevo | No hacer nada; de 2 MB hoy a ~4 MB en 10 años |
+| Hora del cron corre tarde | Scheduler de GH Actions saturado | Es esperable; se tolera jitter de minutos u horas |
+| Quiero forzar una corrida | — | Actions → "Update data (daily)" → Run workflow → main |
 
 ### Paso 2 — Diseño del tab "Liga" en el frontend
 
@@ -562,19 +594,16 @@ Nota: muchas temporadas antiguas pueden no tener datos en el Sistema B (la API d
 ## Archivos que NO van al repositorio git
 
 ```
-scraper/clt.db       ← Base de datos SQLite (grande, binaria, temporal)
+scraper/clt.db-shm   ← SQLite WAL shared memory (temporal)
+scraper/clt.db-wal   ← SQLite write-ahead log (temporal)
 scraper/.venv/       ← Entorno virtual Python
 frontend/.next/      ← Build artifacts de Next.js
 frontend/node_modules/
 ```
 
-Agregar al `.gitignore`:
-```
-scraper/clt.db
-scraper/.venv/
-.next/
-node_modules/
-```
+**Nota:** `scraper/clt.db` SÍ se versiona en git. El workflow diario la necesita para
+mantener el histórico entre corridas (`--incremental` solo procesa la última temporada).
+Son ~2 MB y crece ~10 KB por partido nuevo.
 
 ---
 

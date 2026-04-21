@@ -1,0 +1,88 @@
+name: Update data (daily)
+
+on:
+  schedule:
+    - cron: "30 11 * * *"   # 08:30 Uruguay (UTC-3)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install deps
+        working-directory: scraper
+        run: pip install -r requirements.txt
+
+      - name: Baseline match count
+        id: baseline
+        run: |
+          count=$(python -c 'import json; print(len(json.load(open("frontend/public/data/matches.json"))))')
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Run incremental extractor
+        working-directory: scraper
+        run: python extractor.py --incremental
+
+      - name: Generate JSONs
+        working-directory: scraper
+        run: python json_generator.py
+
+      - name: Health check
+        env:
+          BASELINE: ${{ steps.baseline.outputs.count }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          base = pathlib.Path("frontend/public/data")
+          m = json.loads((base / "matches.json").read_text())
+          assert isinstance(m, list) and len(m) > 0, "matches.json vacío"
+          baseline = int(os.environ["BASELINE"])
+          assert len(m) >= baseline, f"matches.json perdió partidos ({len(m)} < {baseline})"
+          lu = json.loads((base / "last_updated.json").read_text())
+          assert lu.get("updated_at") and lu.get("latest_season"), "last_updated.json inválido"
+          fl = json.loads((base / "fixtures_live.json").read_text())
+          cats = fl.get("categories", [])
+          assert cats and any(c.get("matches") for c in cats), "fixtures_live.json sin partidos"
+          print(f"OK — matches={len(m)} (baseline {baseline}), season={lu['latest_season']}")
+          PY
+
+      - name: Detect changes
+        id: diff
+        run: |
+          git add scraper/clt.db frontend/public/data
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit & push
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(data): actualización automática $(date -u +'%Y-%m-%d')"
+          git push
+
+      - name: Trigger GitHub Pages rebuild
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run gh-pages.yml --ref main
