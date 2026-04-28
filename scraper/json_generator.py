@@ -467,6 +467,7 @@ def _fetch_category_fixtures(cat: dict, season: int) -> dict:
         })
 
     # Partidos próximos — Fecha es un datetime ISO (ej: "2026-04-19 11:15:00")
+    today = datetime.now().date()
     for u in upcoming:
         loc = (u.get("Locatario") or "").strip().upper()
         vis = (u.get("Visitante") or "").strip().upper()
@@ -480,6 +481,14 @@ def _fetch_category_fixtures(cat: dict, season: int) -> dict:
         time_str  = fecha_raw.split(" ")[1][:5] if " " in fecha_raw else None
         if time_str == "00:00":
             time_str = None
+
+        # Filtrar partidos en el pasado (excluir si la fecha ya pasó)
+        try:
+            match_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            if match_date < today:
+                continue
+        except (ValueError, AttributeError):
+            pass
 
         matches.append({
             "date":     date_str,
