@@ -55,7 +55,7 @@ Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
 | **GitHub repo** | ✅ Público | https://github.com/tomassanz/CLT_Dash |
 | **GitHub Pages (backup)** | ✅ Live | https://tomassanz.github.io/CLT_Dash/ — mirror automático |
 | **Static export** | ✅ Listo | `output: "export"` — 0 edge requests en Vercel |
-| **APIs de liga (Sistema B)** | ✅ En producción | Tablas T113: Mayores, Reserva, Sub-20, Sub-18, Sub-16, Sub-14, Presenior, Más 40 |
+| **APIs de liga (Sistema B)** | ✅ En producción | Tablas T113: Mayores, Reserva, Sub-20, Sub-18, Sub-16, Sub-14, Presenior, Más 40, Más 48 |
 | **Modal de partido** | ✅ Listo | `MatchModal.tsx` con flechas ← → para navegar entre partidos filtrados |
 | **Página Jugadores mejorada** | ✅ Listo | Filtros de rol/goles/tarjetas, modal con flechas, jugador en URL |
 | **Datos T113** | ✅ Completos | 8 categorías (may, res, s20, s18, s16, s14, pre, +40) + tablas de posiciones |
@@ -258,6 +258,7 @@ En temporada 112 confirmado: `torneo=2, serie=AT` y `torneo=2, serie=A` tienen C
 | Sub-14 Serie 1 | `14` | `14` | `S14S1` | `T14/S14S1` | 20/04/2026 |
 | Presenior Div B | `32` | `32` | `PSB` | `T32/PSB` | 14/04/2026 |
 | Más 40 Div B | `40` | `40` | `M40S2` | `T40/M40S2` | 14/04/2026 |
+| Más 48 Ronda 1 | `48` | `48` | `48R1` | `T48/48R1` | 27/04/2026 |
 
 **Nota Sub-16:** CLT no aparece en posiciones (no jugó en fecha 1 — solo 4 equipos del grupo jugaron), pero sí en `/partidos/` como próximo.
 **Nota Sub-14:** la serie usa código `S14S1` (no `14-N-` como las demás). Sin resultados todavía, 12 equipos.
@@ -284,6 +285,7 @@ Combina `resultados/api.php` (partidos jugados, con marcador) + `partidos/api.ph
 | `sub14` | Sub-14 | `14` | `14` | `S14S1` | Sí |
 | `presenior` | Presenior | `32` | `32` | `PSB` | No |
 | `mas40` | Más 40 | `40` | `40` | `M40S2` | No |
+| `mas48` | Más 48 | `48` | `48` | `48R1` | No |
 
 **Campos por partido:**
 ```json
@@ -470,13 +472,13 @@ Modal reutilizable para ver el detalle de un partido sin salir de la página.
 Tiene 3 tabs: **Resultados | Tablas | Próximos**
 
 **Tab Resultados:**
-- Cards por categoría (Mayores, Reserva, Sub-20, Presenior, Más 40) mostrando el último partido jugado de T113
+- Cards por categoría (Mayores, Reserva, Sub-20, Presenior, Más 40, Más 48) mostrando el último partido jugado de T113
 - Badge V/E/D + marcador (local-visitante) + fecha + Local/Visitante
 - Click en card abre MatchModal con navegación entre partidos de T113
 - Categorías sin tabla de liga (ej: Más 40) aparecen al final como cards simples
 
 **Tab Tablas:**
-- Tabs por categoría: Mayores | Reserva | Sub-20 | Presenior | Más 40
+- Tabs por categoría: Mayores | Reserva | Sub-20 | Presenior | Más 40 | Más 48
 - Tabla completa de posiciones con CLT resaltado en dorado
 - Top 8 goleadores de la serie debajo de la tabla
 
@@ -490,7 +492,7 @@ Tiene 3 tabs: **Resultados | Tablas | Próximos**
 
 ### Sistema de Fixtures
 
-**`fixtures_live.json`** (principal para Mayores/Reserva/Sub-20/Presenior/Más 40):
+**`fixtures_live.json`** (principal para Mayores/Reserva/Sub-20/Presenior/Más 40/Más 48):
 - Generado automáticamente por `json_generator.py` → `gen_fixtures_live()`
 - Fuente: `resultados/api.php` (jugados) + `partidos/api.php` (próximos) por categoría
 - Se actualiza solo con cada corrida del scraper — si la liga reprograma un partido, el próximo json_generator lo refleja
@@ -499,7 +501,7 @@ Tiene 3 tabs: **Resultados | Tablas | Próximos**
 - Sub-18, Sub-16, Sub-14 cuando estén disponibles
 - El frontend filtra categorías que ya están en `fixtures_live.json` (`LIVE_CATEGORY_IDS`)
 
-**Orden de categorías en la UI:** Mayores → Reserva → Presenior → Más 40 → Sub-20 → Sub-18 → Sub-16 → Sub-14
+**Orden de categorías en la UI:** Mayores → Reserva → Presenior → Más 40 → Más 48 → Sub-20 → Sub-18 → Sub-16 → Sub-14
 
 ---
 

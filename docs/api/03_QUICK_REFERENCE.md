@@ -69,6 +69,7 @@ El parámetro `categoria` NO es siempre `1`. Cada torneo tiene su propio valor. 
 | Sub-20 Div A | `20` | `20` | `20A` | `...torneo=20&categoria=20&serie=20A` |
 | Presenior Div B | `32` | `32` | `PSB` | `...torneo=32&categoria=32&serie=PSB` |
 | Más 40 Div B | `40` | `40` | `M40S2` | `...torneo=40&categoria=40&serie=M40S2` |
+| Más 48 Ronda 1 | `48` | `48` | `48R1` | `...torneo=48&categoria=48&serie=48R1` | ← validado 27/04/2026 |
 
 **Otros deportes:** `deporte=FP` (playa), `deporte=FS` (futsal), `deporte=F7` (fútbol 7).
 

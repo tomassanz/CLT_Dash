@@ -526,6 +526,7 @@ def fetch_league_season_data(conn, season: int):
         ("14", "14", "S14S1"),  # Sub-14 Serie 1
         ("32", "32", "PSB"),    # Presenior / Más 32
         ("40", "40", "M40S2"),  # Más 40
+        ("48", "48", "48R1"),   # Más 48 — validado 27/04/2026
     ]
 
     # Brute-force para descubrir otras series de mayores (torneo_id numérico 1-11, categoria=1)

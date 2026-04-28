@@ -9,12 +9,12 @@ import MatchModal from "@/components/MatchModal"
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const CATEGORY_ORDER = ["mayores", "reserva", "presenior", "mas40", "sub20", "sub18", "sub16", "sub14"]
+const CATEGORY_ORDER = ["mayores", "reserva", "presenior", "mas40", "mas48", "sub20", "sub18", "sub16", "sub14"]
 const PENDING_CATEGORIES: string[] = []
 const CURRENT_SEASON = 113
 
 // IDs de categorías cubiertas por fixtures_live.json (para no mostrarlas como pendientes)
-const LIVE_CATEGORY_IDS = new Set(["mayores", "reserva", "sub20", "sub18", "sub16", "sub14", "presenior", "mas40"])
+const LIVE_CATEGORY_IDS = new Set(["mayores", "reserva", "sub20", "sub18", "sub16", "sub14", "presenior", "mas40", "mas48"])
 
 type Section = "fixtures" | "tablas" | "resultados"
 
@@ -28,6 +28,7 @@ const TOURNAMENT_TO_LABEL: Record<string, string> = {
   "SUB14":             "T14/S14S1",
   "PRE SENIOR":        "T32/PSB",
   "MÁS 40":            "T40/M40S2",
+  "MÁS 48":            "T48/48R1",
 }
 
 // Nombre legible y orden de display para cada label de liga
@@ -41,6 +42,7 @@ const LABEL_META: Record<string, { name: string; order: number }> = {
   "T14/S14S1":  { name: "Sub-14",   order: 5 },
   "T32/PSB":    { name: "Presenior", order: 6 },
   "T40/M40S2":  { name: "Más 40",   order: 7 },
+  "T48/48R1":   { name: "Más 48",   order: 8 },
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

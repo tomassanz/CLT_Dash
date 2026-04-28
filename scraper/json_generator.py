@@ -395,6 +395,8 @@ FIXTURE_CATEGORIES = [
      "torneo": "32", "categoria": "32", "serie": "PSB"},
     {"id": "mas40",     "name": "Más 40",   "division": "Divisional B", "copa": "",
      "torneo": "40", "categoria": "40", "serie": "M40S2"},
+    {"id": "mas48",     "name": "Más 48",   "division": "Ronda 1", "copa": "",
+     "torneo": "48", "categoria": "48", "serie": "48R1"},
 ]
 
 def _api_get(url: str, params: dict) -> list:
