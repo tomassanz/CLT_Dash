@@ -380,23 +380,23 @@ CLT_NAME   = "CARRASCO LAWN TENNIS"
 # Categorías con API del Sistema B — validadas el 14/04/2026 para temporada 113
 FIXTURE_CATEGORIES = [
     {"id": "mayores",   "name": "Mayores",   "division": "Divisional A", "copa": "Copa Pilsen 0,0%",
-     "torneo": "2",  "categoria": "1",  "serie": "A"},
+     "torneo": "2",  "categoria": "1",  "serie": "A",     "db_tournament": "Mayores Masculino"},
     {"id": "reserva",   "name": "Reserva",   "division": "Divisional A", "copa": "Copa Antel",
-     "torneo": "2B", "categoria": "2",  "serie": "RS1"},
+     "torneo": "2B", "categoria": "2",  "serie": "RS1",   "db_tournament": "RESERVA"},
     {"id": "sub20",     "name": "Sub-20",    "division": "Divisional A", "copa": "Copa Perifar",
-     "torneo": "20", "categoria": "20", "serie": "20A"},
+     "torneo": "20", "categoria": "20", "serie": "20A",   "db_tournament": "Sub - 20"},
     {"id": "sub18",     "name": "Sub-18",    "division": "Divisional 3", "copa": "",
-     "torneo": "18", "categoria": "18", "serie": "18-3-", "ida_vuelta": True},
+     "torneo": "18", "categoria": "18", "serie": "18-3-", "db_tournament": "SUB 18", "ida_vuelta": True},
     {"id": "sub16",     "name": "Sub-16",    "division": "Divisional 3", "copa": "",
-     "torneo": "16", "categoria": "16", "serie": "16-3-", "ida_vuelta": True},
+     "torneo": "16", "categoria": "16", "serie": "16-3-", "db_tournament": "SUB 16", "ida_vuelta": True},
     {"id": "sub14",     "name": "Sub-14",    "division": "Serie 1", "copa": "",
-     "torneo": "14", "categoria": "14", "serie": "S14S1", "ida_vuelta": True},
+     "torneo": "14", "categoria": "14", "serie": "S14S1", "db_tournament": "SUB14", "ida_vuelta": True},
     {"id": "presenior", "name": "Presenior", "division": "Divisional B", "copa": "Copa Summum",
-     "torneo": "32", "categoria": "32", "serie": "PSB"},
+     "torneo": "32", "categoria": "32", "serie": "PSB",   "db_tournament": "PRE SENIOR"},
     {"id": "mas40",     "name": "Más 40",   "division": "Divisional B", "copa": "",
-     "torneo": "40", "categoria": "40", "serie": "M40S2"},
+     "torneo": "40", "categoria": "40", "serie": "M40S2", "db_tournament": "MÁS 40"},
     {"id": "mas48",     "name": "Más 48",   "division": "Ronda 1", "copa": "",
-     "torneo": "48", "categoria": "48", "serie": "48R1"},
+     "torneo": "48", "categoria": "48", "serie": "48R1",  "db_tournament": "MÁS 48 MASCULINO"},
 ]
 
 def _api_get(url: str, params: dict) -> list:
@@ -414,10 +414,14 @@ def _api_get(url: str, params: dict) -> list:
                 print(f"  ⚠ Error fetching {url} params={params}: {e}")
     return []
 
-def _fetch_category_fixtures(cat: dict, season: int) -> dict:
+def _fetch_category_fixtures(cat: dict, season: int, conn: sqlite3.Connection | None = None) -> dict:
     """
     Descarga resultados (jugados) + próximos partidos de una categoría para CLT.
     Retorna la estructura de categoría lista para el JSON.
+
+    Si `conn` está disponible, completa los partidos jugados que el Sistema B aún
+    no haya cargado (común en partidos de mitad de semana) usando los datos ya
+    extraídos por Sistema A en `clt.db`.
     """
     params_base = {
         "action":    "cargarPartidos",
@@ -433,6 +437,7 @@ def _fetch_category_fixtures(cat: dict, season: int) -> dict:
     time.sleep(0.25)  # rate limiting suave
 
     matches = []
+    seen_played = set()  # claves (date, opponent_upper) para deduplicar
 
     # Partidos ya jugados — Fecha es el número de fecha (ej: "1")
     for r in results:
@@ -455,9 +460,12 @@ def _fetch_category_fixtures(cat: dict, season: int) -> dict:
         except (TypeError, ValueError):
             score_home = score_away = 0
 
+        opponent = (vis if is_home else loc).title()
+        seen_played.add((date_str, opponent.upper()))
+
         matches.append({
             "date":       date_str,
-            "opponent":   (vis if is_home else loc).title(),
+            "opponent":   opponent,
             "home":       is_home,
             "played":     True,
             "score_home": score_home,  # GL = goles local (tal cual de la API)
@@ -465,6 +473,43 @@ def _fetch_category_fixtures(cat: dict, season: int) -> dict:
             **({"time": time_str} if time_str else {}),
             **({"venue": r.get("Cancha")} if r.get("Cancha") else {}),
         })
+
+    # Fallback: rellenar partidos jugados que el Sistema B aún no cargó, leyendo
+    # directo de clt.db (Sistema A). Esto cubre el caso de partidos de mitad de
+    # semana cuyo resultado tarda días en aparecer en /resultados/api.php.
+    if conn is not None and cat.get("db_tournament"):
+        db_rows = conn.execute("""
+            SELECT datetime, venue, home_team, away_team, score_home, score_away, clt_side
+              FROM matches
+             WHERE season = ? AND tournament = ?
+        """, (season, cat["db_tournament"])).fetchall()
+
+        for row in db_rows:
+            dt = row["datetime"] or ""
+            date_str = dt.split(" ")[0] if dt else ""
+            time_str = dt.split(" ")[1][:5] if " " in dt else None
+            if time_str == "00:00":
+                time_str = None
+
+            is_home = row["clt_side"] == "home"
+            opponent_raw = row["away_team"] if is_home else row["home_team"]
+            opponent = (opponent_raw or "").title()
+            key = (date_str, opponent.upper())
+            if key in seen_played:
+                continue  # Sistema B ya lo trae
+
+            seen_played.add(key)
+            matches.append({
+                "date":       date_str,
+                "opponent":   opponent,
+                "home":       is_home,
+                "played":     True,
+                "score_home": row["score_home"] or 0,
+                "score_away": row["score_away"] or 0,
+                **({"time": time_str} if time_str else {}),
+                **({"venue": row["venue"]} if row["venue"] else {}),
+            })
+            print(f"    + completado desde DB: {date_str} vs {opponent} ({cat['name']})")
 
     # Partidos próximos — Fecha es un datetime ISO (ej: "2026-04-19 11:15:00")
     today = datetime.now().date()
@@ -548,12 +593,17 @@ def _fetch_category_fixtures(cat: dict, season: int) -> dict:
         "matches":  matches,
     }
 
-def gen_fixtures_live(season: int):
-    """Genera fixtures_live.json con el calendario de CLT desde las APIs del Sistema B."""
+def gen_fixtures_live(season: int, conn: sqlite3.Connection | None = None):
+    """Genera fixtures_live.json con el calendario de CLT desde las APIs del Sistema B.
+
+    Si se pasa `conn`, los partidos jugados que el Sistema B aún no haya cargado
+    se completan desde la base de datos (Sistema A) para que ningún partido
+    desaparezca temporalmente del fixture.
+    """
     print(f"  Bajando fixtures live (temporada {season})...")
     categories = []
     for cat in FIXTURE_CATEGORIES:
-        cat_data = _fetch_category_fixtures(cat, season)
+        cat_data = _fetch_category_fixtures(cat, season, conn=conn)
         total = len(cat_data["matches"])
         played = sum(1 for m in cat_data["matches"] if m.get("played"))
         print(f"    {cat['name']}: {total} partidos ({played} jugados, {total - played} próximos)")
@@ -602,7 +652,7 @@ def main():
 
     # Fixtures live — siempre la temporada más reciente
     latest = conn.execute("SELECT MAX(season) as s FROM matches").fetchone()["s"]
-    gen_fixtures_live(latest)
+    gen_fixtures_live(latest, conn=conn)
 
     conn.close()
     print("\nListo.")
