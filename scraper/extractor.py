@@ -2,8 +2,11 @@
 extractor.py — Extractor histórico de partidos de CLT en la Liga Universitaria
 
 Uso:
-    python extractor.py --full          # extrae todas las temporadas (90-112)
-    python extractor.py --incremental   # solo la última temporada con datos
+    python extractor.py --full              # extrae todas las temporadas (90-112)
+    python extractor.py --incremental       # solo la última temporada con datos
+    python extractor.py --refetch-empty     # reintenta partidos sin alineación (última temporada)
+    python extractor.py --refetch-empty 113 # idem, temporada específica
+    python extractor.py --refetch-empty all # idem, todas las temporadas
 
 Genera: clt.db (SQLite) en el directorio donde se corre el script.
 """
@@ -440,6 +443,10 @@ def process_match_detail(conn, match_id: str, clt_side_api: str):
     """
     Descarga y guarda titulares, cambios, goles, amarillas y rojas del lado CLT.
     clt_side_api es "Locatario" o "Visitante".
+
+    Si todas las llamadas vuelven vacías, NO marca el partido como procesado:
+    la liga normalmente carga las alineaciones varias horas/días después del
+    partido y queremos reintentar en la próxima corrida del cron.
     """
     log.debug("  Detalle match %s (%s)", match_id, clt_side_api)
 
@@ -454,7 +461,12 @@ def process_match_detail(conn, match_id: str, clt_side_api: str):
     insert_goals(conn, match_id, goles, clt_side_api)
     insert_yellows(conn, match_id, amarillas)
     insert_reds(conn, match_id, rojas)
-    mark_processed(conn, match_id)
+
+    has_data = bool(titulares) or bool(cambios) or bool(goles) or bool(amarillas) or bool(rojas)
+    if has_data:
+        mark_processed(conn, match_id)
+    else:
+        log.info("  ⚠ Match %s sin alineaciones todavía — se reintentará la próxima vez", match_id)
     conn.commit()
 
 def process_round(conn, season: int, torneo: str, serie: str, round_no) -> list:
@@ -701,6 +713,55 @@ def process_series(conn, season: int, torneo: str, serie: str,
 
     # (los datos de liga se descargan una vez al finalizar la temporada)
 
+def refetch_empty_matches(conn, season: int | None = None):
+    """
+    Busca partidos marcados como procesados pero sin datos (sin titulares, goles,
+    cambios, amarillas ni rojas), los desmarca y reintenta la descarga del detalle.
+
+    Útil para rescatar partidos donde la liga cargó la alineación después de que
+    corrió el cron. Si `season` es None procesa todas las temporadas.
+    """
+    where_season = ""
+    params: tuple = ()
+    if season is not None:
+        where_season = "AND m.season=?"
+        params = (season,)
+
+    rows = conn.execute(f"""
+        SELECT m.id, m.clt_side, m.season, m.tournament, m.series, m.round,
+               m.home_team, m.away_team
+        FROM matches m
+        WHERE NOT EXISTS (SELECT 1 FROM match_starters s WHERE s.match_id=m.id)
+          AND NOT EXISTS (SELECT 1 FROM match_goals    g WHERE g.match_id=m.id)
+          AND NOT EXISTS (SELECT 1 FROM match_subs     u WHERE u.match_id=m.id)
+          AND NOT EXISTS (SELECT 1 FROM match_yellows  y WHERE y.match_id=m.id)
+          AND NOT EXISTS (SELECT 1 FROM match_reds     r WHERE r.match_id=m.id)
+          {where_season}
+        ORDER BY m.datetime DESC
+    """, params).fetchall()
+
+    if not rows:
+        log.info("No hay partidos vacíos para reintentar (season=%s)", season)
+        return
+
+    log.info("Reintentando %d partido(s) sin detalle (season=%s)", len(rows), season)
+    rescued = 0
+    for row in rows:
+        mid = row["id"]
+        clt_side_api = "Locatario" if row["clt_side"] == "home" else "Visitante"
+        # Desmarcar para forzar el reintento
+        conn.execute("DELETE FROM processed_matches WHERE match_id=?", (mid,))
+        conn.commit()
+        log.info("  → S%d %s F%s | %s vs %s | id=%s",
+                 row["season"], row["tournament"], row["round"],
+                 row["home_team"], row["away_team"], mid)
+        process_match_detail(conn, mid, clt_side_api)
+        if is_processed(conn, mid):
+            rescued += 1
+
+    log.info("Rescatados con datos: %d / %d", rescued, len(rows))
+
+
 def process_season(conn, season: int, skip_sampling: bool = False):
     torneos = get_torneos(season)
     if not torneos:
@@ -742,6 +803,9 @@ def main():
                        help="Extrae una temporada específica (ej: --season 111)")
     group.add_argument("--patch",       type=int, metavar="N",
                        help="Re-procesa una temporada sin sampling para recuperar partidos faltantes")
+    group.add_argument("--refetch-empty", nargs="?", const="latest", metavar="SEASON",
+                       help="Reintenta el detalle (titulares/goles/etc.) de partidos que quedaron sin datos. "
+                            "Sin argumento usa la última temporada; pasar 'all' procesa todas, o un número (ej: 113).")
     args = parser.parse_args()
 
     conn = db_connect()
@@ -752,12 +816,25 @@ def main():
     if args.incremental:
         log.info("=== Modo incremental — temporada %d ===", latest)
         process_season(conn, latest, skip_sampling=True)
+        # Rescate de partidos vacíos en la temporada activa (alineaciones que
+        # la liga cargó después de la corrida anterior del cron).
+        refetch_empty_matches(conn, season=latest)
     elif args.patch:
         log.info("=== Modo patch (sin sampling) — temporada %d ===", args.patch)
         process_season(conn, args.patch, skip_sampling=True)
+        refetch_empty_matches(conn, season=args.patch)
     elif args.season:
         log.info("=== Temporada específica: %d ===", args.season)
         process_season(conn, args.season, skip_sampling=False)
+    elif args.refetch_empty is not None:
+        val = args.refetch_empty
+        if val == "all":
+            log.info("=== Refetch-empty: TODAS las temporadas ===")
+            refetch_empty_matches(conn, season=None)
+        else:
+            target = latest if val == "latest" else int(val)
+            log.info("=== Refetch-empty — temporada %d ===", target)
+            refetch_empty_matches(conn, season=target)
     else:
         log.info("=== Modo full — temporadas %d–%d ===", SEASON_MIN, latest)
         for season in range(SEASON_MIN, latest + 1):
