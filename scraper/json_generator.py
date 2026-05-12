@@ -33,10 +33,70 @@ def write_json(path: Path, data, label: str = ""):
     print(f"  ✓ {label or path.name} ({size_kb:.1f} KB)")
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Deduplicación de partidos
+# ──────────────────────────────────────────────────────────────────────────────
+
+def find_duplicate_match_ids(conn) -> set[str]:
+    """
+    Detecta partidos duplicados (mismo encuentro con ID distinto) y devuelve
+    los IDs "fantasma" que hay que excluir de los JSONs públicos.
+
+    La API a veces re-emite un ID nuevo para el mismo partido (mismo equipo
+    local, visitante, fecha-hora, marcador, jornada). Cuando eso pasa quedan
+    dos filas en `matches` pero solo una tiene alineaciones cargadas. El
+    objetivo es quedarse con la fila que tiene datos.
+
+    Criterio: mismo (season, tournament, series, round, datetime, home_team,
+    away_team, score_home, score_away). Si hay varias filas, se conserva la
+    que tenga la mayor cantidad de registros de detalle (titulares+goles+
+    cambios+amarillas+rojas). Empates → la de ID más alto (la más reciente).
+    """
+    rows = conn.execute("""
+        SELECT
+            m.id, m.season, m.tournament, m.series, m.round, m.datetime,
+            m.home_team, m.away_team, m.score_home, m.score_away,
+            COALESCE((SELECT COUNT(*) FROM match_starters s WHERE s.match_id=m.id), 0) +
+            COALESCE((SELECT COUNT(*) FROM match_goals    g WHERE g.match_id=m.id), 0) +
+            COALESCE((SELECT COUNT(*) FROM match_subs     u WHERE u.match_id=m.id), 0) +
+            COALESCE((SELECT COUNT(*) FROM match_yellows  y WHERE y.match_id=m.id), 0) +
+            COALESCE((SELECT COUNT(*) FROM match_reds     r WHERE r.match_id=m.id), 0)
+            AS detail_count
+        FROM matches m
+    """).fetchall()
+
+    groups: dict[tuple, list] = {}
+    for r in rows:
+        key = (
+            r["season"], r["tournament"], r["series"], r["round"],
+            r["datetime"], r["home_team"], r["away_team"],
+            r["score_home"], r["score_away"],
+        )
+        groups.setdefault(key, []).append((r["id"], r["detail_count"]))
+
+    to_exclude: set[str] = set()
+    for key, ids in groups.items():
+        if len(ids) < 2:
+            continue
+        # Mejor candidato: más detail; desempate por ID numérico descendente.
+        def _id_num(mid: str) -> int:
+            try:
+                return int(mid)
+            except (TypeError, ValueError):
+                return 0
+        ids_sorted = sorted(ids, key=lambda x: (-x[1], -_id_num(x[0])))
+        winner = ids_sorted[0][0]
+        for mid, _cnt in ids_sorted[1:]:
+            to_exclude.add(mid)
+            print(f"  ⚠ Duplicado descartado: id={mid} (se queda {winner}) "
+                  f"— {key[1]} / {key[2]} F{key[3]} {key[5]} vs {key[6]}")
+    return to_exclude
+
+# ──────────────────────────────────────────────────────────────────────────────
 # matches.json — tabla principal (compacto, sin detalles de alineación)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def gen_matches(conn):
+def gen_matches(conn, exclude_ids: set[str] | None = None):
+    exclude_ids = exclude_ids or set()
     rows = conn.execute("""
         SELECT
             id, season, tournament, series, round,
@@ -50,6 +110,8 @@ def gen_matches(conn):
 
     matches = []
     for r in rows:
+        if r["id"] in exclude_ids:
+            continue
         matches.append({
             "id":       r["id"],
             "season":   r["season"],
@@ -124,14 +186,23 @@ def gen_seasons(conn):
 # match_detail_{id}.json — detalle por partido (cargado on-demand)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def gen_match_details(conn):
+def gen_match_details(conn, exclude_ids: set[str] | None = None):
+    exclude_ids = exclude_ids or set()
     matches = conn.execute("SELECT id FROM matches").fetchall()
     detail_dir = OUT_DIR / "match"
     detail_dir.mkdir(parents=True, exist_ok=True)
 
+    # Limpiar JSONs viejos de IDs duplicados que ya no van al sitio
+    for mid in exclude_ids:
+        stale = detail_dir / f"{mid}.json"
+        if stale.exists():
+            stale.unlink()
+
     count = 0
     for row in matches:
         mid = row["id"]
+        if mid in exclude_ids:
+            continue
 
         starters = conn.execute("""
             SELECT player_carne, player_name, shirt_number, is_captain
@@ -187,8 +258,9 @@ def gen_match_details(conn):
 # players_stats.json — rankings
 # ──────────────────────────────────────────────────────────────────────────────
 
-def gen_player_index(conn):
+def gen_player_index(conn, exclude_ids: set[str] | None = None):
     """Genera player_index.json — mapeo carne → [match_ids] para evitar cargar 2000+ archivos en el frontend."""
+    exclude_ids = exclude_ids or set()
     # Titulares
     starters = conn.execute("""
         SELECT player_carne, match_id FROM match_starters WHERE player_carne != ''
@@ -206,10 +278,16 @@ def gen_player_index(conn):
 
     idx = {}
     for r in starters:
+        if r["match_id"] in exclude_ids:
+            continue
         idx.setdefault(r["player_carne"], set()).add(r["match_id"])
     for r in subs_in:
+        if r["match_id"] in exclude_ids:
+            continue
         idx.setdefault(r["player_in_carne"], set()).add(r["match_id"])
     for r in subs_out:
+        if r["match_id"] in exclude_ids:
+            continue
         idx.setdefault(r["player_out_carne"], set()).add(r["match_id"])
 
     # Convertir sets a listas ordenadas para JSON
@@ -218,9 +296,19 @@ def gen_player_index(conn):
     write_json(OUT_DIR / "player_index.json", data,
                f"player_index.json ({len(data)} jugadores)")
 
-def gen_players_stats(conn):
+def gen_players_stats(conn, exclude_ids: set[str] | None = None):
+    exclude_ids = exclude_ids or set()
+    # Filtro SQL para excluir partidos duplicados
+    if exclude_ids:
+        placeholders = ",".join("?" for _ in exclude_ids)
+        exclude_filter = f"AND m.id NOT IN ({placeholders})"
+        exclude_params = tuple(exclude_ids)
+    else:
+        exclude_filter = ""
+        exclude_params = ()
+
     # Goleadores con desglose por temporada (excluye goles en contra)
-    scorers_raw = conn.execute("""
+    scorers_raw = conn.execute(f"""
         SELECT
             g.player_carne as carne,
             g.player_name  as name,
@@ -229,9 +317,10 @@ def gen_players_stats(conn):
         FROM match_goals g
         JOIN matches m ON m.id = g.match_id
         WHERE g.is_own_goal = 0
+          {exclude_filter}
         GROUP BY g.player_carne, g.player_name, m.season
         ORDER BY g.player_carne, m.season
-    """).fetchall()
+    """, exclude_params).fetchall()
 
     # Agrupar por jugador
     scorers_map = {}
@@ -244,8 +333,17 @@ def gen_players_stats(conn):
 
     scorers = sorted(scorers_map.values(), key=lambda x: (-x["goals"], x["name"]))
 
-    # Apariciones (titulares + entradas como cambio)
-    appearances_raw = conn.execute("""
+    # Apariciones (titulares + entradas como cambio) — excluye partidos duplicados
+    if exclude_ids:
+        ph = ",".join("?" for _ in exclude_ids)
+        starters_filter = f"WHERE match_id NOT IN ({ph})"
+        subs_filter     = f"WHERE match_id NOT IN ({ph})"
+        params2 = tuple(exclude_ids) + tuple(exclude_ids)
+    else:
+        starters_filter = subs_filter = ""
+        params2 = ()
+
+    appearances_raw = conn.execute(f"""
         SELECT carne, name, starters, subs_in, (starters + subs_in) as total
         FROM (
             SELECT
@@ -256,16 +354,16 @@ def gen_players_stats(conn):
             FROM players p
             LEFT JOIN (
                 SELECT player_carne, COUNT(*) as n
-                FROM match_starters GROUP BY player_carne
+                FROM match_starters {starters_filter} GROUP BY player_carne
             ) st ON st.player_carne = p.carne
             LEFT JOIN (
                 SELECT player_in_carne, COUNT(*) as n
-                FROM match_subs GROUP BY player_in_carne
+                FROM match_subs {subs_filter} GROUP BY player_in_carne
             ) su ON su.player_in_carne = p.carne
         )
         WHERE total > 0
         ORDER BY total DESC, name
-    """).fetchall()
+    """, params2).fetchall()
 
     appearances = [
         {"carne": r["carne"], "name": r["name"],
@@ -592,11 +690,18 @@ def main():
 
     conn = db_connect()
 
-    gen_matches(conn)
+    print("Buscando duplicados...")
+    exclude_ids = find_duplicate_match_ids(conn)
+    if exclude_ids:
+        print(f"  → {len(exclude_ids)} partido(s) duplicado(s) excluido(s)\n")
+    else:
+        print("  → sin duplicados\n")
+
+    gen_matches(conn, exclude_ids)
     gen_seasons(conn)
-    gen_match_details(conn)
-    gen_player_index(conn)
-    gen_players_stats(conn)
+    gen_match_details(conn, exclude_ids)
+    gen_player_index(conn, exclude_ids)
+    gen_players_stats(conn, exclude_ids)
     gen_league_context(conn)
     gen_last_updated(conn)
 

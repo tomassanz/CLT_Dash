@@ -6,6 +6,10 @@ scraper/clt.db-wal
 # Entorno virtual Python
 scraper/.venv/
 
+# Bytecode de Python (temporal, lo genera el intérprete)
+__pycache__/
+*.pyc
+
 # Next.js
 frontend/.next/
 frontend/node_modules/
