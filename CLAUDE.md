@@ -10,13 +10,14 @@ Dashboard web público que muestra toda la historia de partidos de fútbol del *
 
 ---
 
-## Estado actual del proyecto (al 14/04/2026 — actualizado sesión 5)
+## Estado actual del proyecto (al 15/05/2026 — actualizado sesión engagement)
 
 ### 📋 Planes pendientes (NO ejecutar sin coordinar)
 
 | Plan | Archivo | Estado |
 |---|---|---|
-| Newsletter semanal + pop-up de suscripción (MailerLite + GitHub Actions) | [docs/plan_newsletter.md](docs/plan_newsletter.md) | 📝 Aprobado, sin ejecutar. Otra instancia de Claude puede estar trabajando en esto — coordinar antes de tocar. |
+| Newsletter semanal + pop-up de suscripción (MailerLite + GitHub Actions) | [docs/plan_newsletter.md](docs/plan_newsletter.md) | ⏸️ En standby. MailerLite configurado (cuenta creada, grupo CLT_FUTBOL, API key generado). Falta decidir si usar token del lado del cliente o mover a serverless (sacar `output: export`). Ver detalles abajo. |
+| Plan de engagement completo | [Plan_engagement.md](Plan_engagement.md) | 🔄 En ejecución — ver estado por feature abajo. |
 
 ### 📚 Documentación de APIs (NUEVA — Marzo 2026)
 
@@ -59,17 +60,48 @@ Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
 | **Modal de partido** | ✅ Listo | `MatchModal.tsx` con flechas ← → para navegar entre partidos filtrados |
 | **Página Jugadores mejorada** | ✅ Listo | Filtros de rol/goles/tarjetas, modal con flechas, jugador en URL |
 | **Datos T113** | ✅ Completos | 8 categorías (may, res, s20, s18, s16, s14, pre, +40) + tablas de posiciones |
-| **Actualidad — Resultados** | ✅ Listo | Cards por categoría: último resultado (sin posición en tabla) |
+| **Actualidad — Resultados** | ✅ Rediseñado | Nuevo layout: barra de color lateral, marcador grande, CLT siempre a la izquierda, badge V/E/D prominente. Muestra último partido por categoría ordenado por fecha. |
 | **Actualidad — Tablas** | ✅ Listo | Standings completos con CLT resaltado + goleadores, tabs por categoría (8 categorías) |
 | **Actualidad — Próximos (fixtures live)** | ✅ Listo | `fixtures_live.json` generado por `json_generator.py` desde APIs Sistema B. 8 categorías. Sub-18/16/14 con vuelta tentativa (ida_vuelta). Muestra marcador si jugado, cancha si confirmada, badge PRÓXIMO. Partidos tentativos atenuados con borde punteado. |
+| **Feature 1.B — Botón Compartir** | ✅ Live | `ShareButton.tsx` en header de `MatchModal`. Native share en mobile, dropdown WhatsApp + copiar link en desktop. Mensaje siempre desde perspectiva CLT. |
+| **Feature 1.C — Preview OG por partido** | ✅ Live | `generateMetadata` en `app/partido/[id]/page.tsx`. Lee `matches.json` en build time. Genera título y descripción únicos por partido para preview en WhatsApp/redes. |
+| **Feature 1.A — Hero vivo** | ✅ Live | `HeroLiveStrip.tsx` en la home. Bloque superior: mejor resultado reciente (prioriza victorias con más goles, ventana 6-20 días, luego Mayores/Reserva). Bloque inferior: próximo partido aleatorio con foco en el finde. Ambos linkan a Actualidad. |
 
 ### ⏳ Pendiente
 
 | Tarea | Prioridad | Detalle |
 |---|---|---|
 | **GitHub Actions (cron semanal)** | 🔴 Próxima instancia | `.github/workflows/update.yml`. Corre `extractor.py --incremental` + `json_generator.py` cada domingo y hace push automático. El `json_generator.py` ya incluye fixtures_live al final. |
-| **Fixtures juveniles: vuelta real** | 🟢 Cuando la liga los cargue | Sub-18/16/14 tienen vuelta tentativa generada. Cuando la liga cargue los partidos de vuelta en la API, el próximo `json_generator.py` los reemplazará automáticamente (los tentativos desaparecen porque el rival aparecerá con ambas localías). |
-| **Fixtures: partidos suspendidos/reprogramados** | 🟡 Futuro | Como fixtures_live viene directo de la API, si la liga actualiza la fecha de un partido reprogramado, se refleja automáticamente en el próximo `json_generator.py`. No hay problema de sync como había con el JSON estático. |
+| **Fixtures juveniles: vuelta real** | 🟢 Cuando la liga los cargue | Sub-18/16/14 tienen vuelta tentativa generada. Cuando la liga cargue los partidos de vuelta en la API, el próximo `json_generator.py` los reemplazará automáticamente. |
+| **Fixtures: partidos suspendidos/reprogramados** | 🟡 Futuro | Como fixtures_live viene directo de la API, si la liga actualiza la fecha de un partido reprogramado, se refleja automáticamente en el próximo `json_generator.py`. |
+| **Newsletter / suscripción (Feature 5.A)** | ⏸️ Standby | Ver sección MailerLite abajo. Decisión pendiente: token client-side vs mover a serverless. |
+| **Feature 3.A — Banner de rachas** | ⏸️ Descartado por ahora | Requiere cambios en scraper. Tomas quiere repensarlo. |
+| **Feature 2.A — "Hoy hace X años"** | ❌ Descartado | Demasiado dependiente del azar para generar engagement consistente. |
+
+---
+
+## MailerLite — Estado de configuración
+
+Cuenta creada por Tomás (tomas.sanz00@gmail.com). Configuración parcial:
+
+| Ítem | Estado | Valor |
+|---|---|---|
+| Cuenta | ✅ Creada | Plan gratuito (hasta 1000 suscriptores) |
+| Grupo | ✅ Creado | `CLT_FUTBOL` — ID: `187589051074741542` |
+| API Key | ✅ Generado | Guardado en Vercel como `MAILERLITE_API_KEY` (pendiente confirmar) |
+| Formulario en código | ⏸️ Pendiente | Ver decisión abajo |
+
+### Campos a recopilar en el formulario
+- Email
+- Nombre y apellido
+- Cómo te identificás: Jugador / Técnico / Familiar / Hincha
+
+### Decisión pendiente antes de codear el formulario
+El sitio es `output: export` (100% estático). Llamar a la API de MailerLite desde el browser expone el API key públicamente. Opciones:
+- **Opción A — Token client-side:** más simple, riesgo bajo (solo podrían inyectar suscriptores falsos). No requiere cambios de arquitectura.
+- **Opción B — Serverless:** sacar `output: export`, agregar una API route de Next.js que recibe el form y llama a MailerLite server-side. Token nunca expuesto. Requiere cambiar Vercel de static a Node.js runtime.
+
+**Recomendación:** Opción B es la correcta a largo plazo (también habilita recordatorios personalizados por jugador en el futuro). Opción A es válida para arrancar rápido.
 
 ### Hosting y deploy
 
@@ -520,6 +552,8 @@ Tiene 3 tabs: **Resultados | Tablas | Próximos**
 | `components/StatsBar.tsx` | Cards de estadísticas resumidas |
 | `components/RankingTable.tsx` | Tablas goleadores y presencias |
 | `components/ResultBadge.tsx` | Badge V/E/D con color |
+| `components/ShareButton.tsx` | Botón compartir partido. Native share en mobile, dropdown en desktop. Siempre usa URL canónica `cltfutbol.com.uy/partido/{id}` |
+| `components/HeroLiveStrip.tsx` | Franja viva en el hero de la home. Resultado reciente priorizado + próximo partido aleatorio con foco en el finde. |
 | `lib/types.ts` | Interfaces TypeScript de todos los datos |
 | `lib/data.ts` | Funciones de carga de JSONs + helpers (rival, formatDate, toProperCase) |
 
