@@ -1,7 +1,7 @@
 "use client"
 import { useState } from "react"
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-BSwDW-HVyXb6wVHXlwjY99nSsWI7lAE-d0bmJgJOBtRji1NKJwtDAG9UQu72pgMqmA/exec"
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyaiac7v3g21NgLZ9cZK7xISffYOIhuJHW7xIA0Rrju2IjMBmh7dVThsabM2MNuyO7o1g/exec"
 
 type Rol = "Jugador" | "Técnico" | "Familiar" | "Hincha"
 type Status = "idle" | "loading" | "ok" | "error"
