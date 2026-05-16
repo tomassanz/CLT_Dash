@@ -1,0 +1,32 @@
+name: Newsletter — Resultados del finde
+
+on:
+  schedule:
+    # Martes 10:00 Uruguay (13:00 UTC)
+    - cron: "0 13 * * 2"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (no envía emails reales)"
+        type: boolean
+        default: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Send results newsletter
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python scraper/send_newsletter.py --results --dry-run
+          else
+            python scraper/send_newsletter.py --results
+          fi

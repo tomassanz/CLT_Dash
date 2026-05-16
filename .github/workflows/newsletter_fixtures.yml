@@ -1,0 +1,32 @@
+name: Newsletter — Partidos del finde
+
+on:
+  schedule:
+    # Viernes 18:00 Uruguay (21:00 UTC)
+    - cron: "0 21 * * 5"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (no envía emails reales)"
+        type: boolean
+        default: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Send fixtures newsletter
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python scraper/send_newsletter.py --fixtures --dry-run
+          else
+            python scraper/send_newsletter.py --fixtures
+          fi
