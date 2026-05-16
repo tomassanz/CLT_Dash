@@ -24,6 +24,7 @@ jobs:
       - name: Send fixtures newsletter
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SUBSCRIBERS_API_KEY: ${{ secrets.SUBSCRIBERS_API_KEY }}
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             python scraper/send_newsletter.py --fixtures --dry-run
