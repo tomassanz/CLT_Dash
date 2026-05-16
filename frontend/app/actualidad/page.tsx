@@ -83,6 +83,13 @@ const SECTIONS: { id: Section; label: string; icon: typeof Calendar }[] = [
 
 // ── Result card (mobile-friendly) ────────────────────────────────────────────
 
+const RESULT_BG: Record<string, string> = {
+  W: "#16a34a",
+  D: "#ca8a04",
+  L: "#dc2626",
+}
+const RESULT_LABEL: Record<string, string> = { W: "Victoria", D: "Empate", L: "Derrota" }
+
 function ResultCard({
   match,
   categoryLabel,
@@ -93,71 +100,109 @@ function ResultCard({
   onClick: () => void
 }) {
   const opp = rival(match)
-  const isHome = match.clt_side === "home"
-  const homeName = isHome ? "CLT" : toProperCase(opp)
-  const awayName = isHome ? toProperCase(opp) : "CLT"
+  const cltScore = match.gf ?? 0
+  const oppScore = match.ga ?? 0
+  const result = match.result ?? "D"
+  const bg = RESULT_BG[result] ?? "#ca8a04"
 
   return (
     <button
       onClick={onClick}
-      className="w-full rounded-xl border px-3 py-3 sm:px-4 text-left hover:shadow-sm transition-shadow group block"
-      style={{ borderColor: "#F0E8DF", backgroundColor: "white" }}
+      className="w-full rounded-xl overflow-hidden text-left hover:shadow-md transition-shadow group flex"
+      style={{ backgroundColor: "white", border: "1px solid #F0E8DF" }}
     >
-      {/* Top meta row: category | result + home/away + chevron */}
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <span
-          className="text-[10px] font-bold uppercase tracking-wide truncate"
-          style={{ color: "#6B2D2D" }}
-        >
-          {categoryLabel}
-        </span>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span
-            className="text-[10px] font-medium flex items-center gap-0.5 px-1.5 py-0.5 rounded"
-            style={{
-              backgroundColor: isHome ? "#E8F5E9" : "#FFF3E0",
-              color: isHome ? "#2E7D32" : "#E65100",
-            }}
-          >
-            {isHome ? <Home size={9} /> : <Plane size={9} />}
-            {isHome ? "Local" : "Visit."}
+      {/* Left color bar */}
+      <div className="w-1 shrink-0" style={{ backgroundColor: bg }} />
+
+      {/* Main content */}
+      <div className="flex-1 px-3 py-3 sm:px-4 min-w-0">
+        {/* Category + date */}
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "#6B2D2D" }}>
+            {categoryLabel}
           </span>
-          <ResultBadge result={match.result} size="sm" />
-          <ChevronRight
-            size={14}
-            className="text-gray-300 group-hover:text-gray-500 transition-colors"
-          />
+          <span className="text-[11px] text-gray-400">{formatDate(match.datetime)}</span>
+        </div>
+
+        {/* Score row */}
+        <div className="flex items-center gap-3">
+          {/* CLT score — always left, big */}
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-3xl font-black tabular-nums leading-none" style={{ color: "#3A1A1A" }}>
+              {cltScore}
+            </span>
+            <span className="text-lg font-bold text-gray-300">–</span>
+            <span className="text-3xl font-black tabular-nums leading-none" style={{ color: "#9B8B7A" }}>
+              {oppScore}
+            </span>
+          </div>
+
+          {/* Opponent */}
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-0.5">
+              {match.clt_side === "home" ? "vs" : "en"}
+            </div>
+            <div className="text-sm font-semibold leading-tight truncate" style={{ color: "#3A1A1A" }}>
+              {toProperCase(opp)}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Teams + score — each team gets its own column so long names can wrap */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <span
-          className="text-sm font-semibold text-right leading-tight break-words"
-          style={{ color: "#3A1A1A" }}
-        >
-          {homeName}
+      {/* Right: result badge */}
+      <div
+        className="shrink-0 flex items-center justify-center w-16 sm:w-20"
+        style={{ backgroundColor: bg + "18" }}
+      >
+        <span className="text-xs font-bold uppercase tracking-wide" style={{ color: bg }}>
+          {RESULT_LABEL[result]}
         </span>
-        <span
-          className="text-base font-bold tabular-nums whitespace-nowrap px-2"
-          style={{ color: "#6B2D2D" }}
-        >
-          {match.score_home ?? "?"}-{match.score_away ?? "?"}
-        </span>
-        <span
-          className="text-sm font-semibold text-left leading-tight break-words"
-          style={{ color: "#3A1A1A" }}
-        >
-          {awayName}
-        </span>
-      </div>
-
-      {/* Date row */}
-      <div className="mt-2 text-[11px] text-gray-400 flex items-center gap-1">
-        <Calendar size={10} />
-        {formatDate(match.datetime)}
       </div>
     </button>
+  )
+}
+
+// ── Weekend Results ───────────────────────────────────────────────────────────
+
+function lastMatchForLabelStatic(label: string, matches: Match[]): Match | null {
+  const tournament = Object.entries(TOURNAMENT_TO_LABEL).find(([, l]) => l === label)?.[0]
+  if (!tournament) return null
+  return matches.find(m => m.tournament === tournament) ?? null
+}
+
+function WeekendResults({ matches, onMatchClick, leagueSeries }: {
+  matches: Match[]
+  onMatchClick: (m: Match) => void
+  leagueSeries: SeriesLeagueContext[]
+}) {
+  const displayMatches = leagueSeries
+    .map(ctx => ({ ctx, lastMatch: lastMatchForLabelStatic(ctx.label, matches) }))
+    .filter((x): x is { ctx: SeriesLeagueContext; lastMatch: Match } => x.lastMatch !== null)
+    .sort((a, b) => (b.lastMatch.datetime ?? "").localeCompare(a.lastMatch.datetime ?? ""))
+
+  return (
+    <div className="px-4 py-4 sm:px-5" style={{ backgroundColor: "#FDFAF6" }}>
+      {displayMatches.length === 0 ? (
+        <div className="py-10 flex flex-col items-center justify-center">
+          <Clock size={32} strokeWidth={1.2} style={{ color: "#D4A843" }} />
+          <p className="text-sm font-semibold mt-3" style={{ color: "#6B2D2D" }}>Sin resultados todavía</p>
+          <p className="text-xs text-gray-400 mt-1.5 text-center">
+            Los resultados van a aparecer cuando se jueguen los primeros partidos de la temporada.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {displayMatches.map(({ ctx, lastMatch }) => (
+            <ResultCard
+              key={ctx.label}
+              match={lastMatch}
+              categoryLabel={labelName(ctx.label)}
+              onClick={() => onMatchClick(lastMatch)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -586,47 +631,11 @@ export default function ActualidadPage() {
         {/* SECTION 3: Últimos Resultados                                       */}
         {/* ════════════════════════════════════════════════════════════════════ */}
         {activeSection === "resultados" && (
-          <>
-            <div className="px-5 py-3" style={{ backgroundColor: "#D4A843" }}>
-              <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: "#3A1A1A" }}>
-                Últimos resultados
-              </p>
-            </div>
-
-            <div className="px-4 py-4 sm:px-5" style={{ backgroundColor: "#FDFAF6" }}>
-              {season113Matches.length === 0 ? (
-                <div className="py-8 flex flex-col items-center justify-center">
-                  <Clock size={32} strokeWidth={1.2} style={{ color: "#D4A843" }} />
-                  <p className="text-sm font-semibold mt-3" style={{ color: "#6B2D2D" }}>
-                    Sin resultados todavía
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1.5 text-center">
-                    Los resultados van a aparecer cuando se jueguen los primeros partidos de la temporada.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Per-category result cards, ordenados por fecha del último partido */}
-                  {leagueSeries
-                    .map(ctx => ({ ctx, lastMatch: lastMatchForLabel(ctx.label) }))
-                    .filter((x): x is { ctx: SeriesLeagueContext; lastMatch: Match } => x.lastMatch !== null)
-                    .sort((a, b) => {
-                      const da = a.lastMatch.datetime ?? ""
-                      const db = b.lastMatch.datetime ?? ""
-                      return db.localeCompare(da)
-                    })
-                    .map(({ ctx, lastMatch }) => (
-                      <ResultCard
-                        key={ctx.label}
-                        match={lastMatch}
-                        categoryLabel={labelName(ctx.label)}
-                        onClick={() => openMatchModal(lastMatch)}
-                      />
-                    ))}
-                </div>
-              )}
-            </div>
-          </>
+          <WeekendResults
+            matches={season113Matches}
+            onMatchClick={openMatchModal}
+            leagueSeries={leagueSeries}
+          />
         )}
       </div>
 
