@@ -76,7 +76,7 @@ function labelName(label: string): string {
 // ── Section tabs config ──────────────────────────────────────────────────────
 
 const SECTIONS: { id: Section; label: string; icon: typeof Calendar }[] = [
-  { id: "resultados", label: "Resultados",  icon: Clock },
+  { id: "resultados", label: "Últimos resultados",  icon: Clock },
   { id: "tablas",     label: "Tablas",      icon: Trophy },
   { id: "fixtures",   label: "Próximos",    icon: Calendar },
 ]
