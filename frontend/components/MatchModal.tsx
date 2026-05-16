@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import type { Match, MatchDetail } from "@/lib/types"
 import { loadMatchDetail, formatDate, toProperCase } from "@/lib/data"
 import ResultBadge from "@/components/ResultBadge"
+import ShareButton from "@/components/ShareButton"
 import { Home, Plane, X, ChevronLeft, ChevronRight } from "lucide-react"
 
 interface Props {
@@ -98,6 +99,8 @@ export default function MatchModal({ match: initialMatch, detail: initialDetail,
           >
             <ChevronRight size={20} />
           </button>
+
+          <ShareButton match={match} />
 
           {/* Close */}
           <button

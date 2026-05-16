@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { loadMatches, loadPlayersStats } from "@/lib/data"
+import HeroLiveStrip from "@/components/HeroLiveStrip"
 
 /* ── Stats from data ────────────────────────────────────────────────────────── */
 interface LandingStats {
@@ -153,8 +154,13 @@ export default function LandingPage() {
             — desde los primeros registros hasta el ultimo fin de semana.
           </p>
 
+          {/* Live strip */}
+          <div className={`transition-all duration-500 delay-500 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+            <HeroLiveStrip />
+          </div>
+
           {/* CTA */}
-          <div className={`mt-8 flex flex-col sm:flex-row items-stretch justify-center gap-3 transition-all duration-500 delay-500 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+          <div className={`mt-8 flex flex-col sm:flex-row items-stretch justify-center gap-3 transition-all duration-500 delay-600 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <Link
               href="/actualidad"
               className="flex items-center justify-center px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 border hover:bg-white/10"
