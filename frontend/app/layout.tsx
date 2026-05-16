@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { Suspense } from "react"
 import { Instagram } from "lucide-react"
 import { Analytics } from "@vercel/analytics/react"
+import NewsletterPopup from "@/components/NewsletterPopup"
 import "./globals.css"
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? ""
@@ -91,6 +92,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
         </footer>
+
+        <NewsletterPopup />
         <Analytics />
       </body>
     </html>
