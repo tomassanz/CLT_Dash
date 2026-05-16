@@ -27,6 +27,8 @@ def load_subscribers() -> list[dict]:
     return unique
 
 
+RESEND_DAILY_LIMIT = 100
+
 def build_html(subscribers: list[dict]) -> str:
     total = len(subscribers)
     today = date.today()
@@ -47,6 +49,28 @@ def build_html(subscribers: list[dict]) -> str:
           <td style="padding:6px 12px;text-align:right;color:#888;">{pct}%</td>
         </tr>"""
 
+    # Alerta de capacidad
+    capacity_pct = round(total / RESEND_DAILY_LIMIT * 100)
+    if total >= 90:
+        alert_html = f"""
+    <div style="background:#fee;border-left:4px solid #dc2626;padding:14px 18px;border-radius:8px;margin-bottom:20px;">
+      <p style="margin:0;color:#dc2626;font-weight:bold;font-size:14px;">⚠️ Atención: cerca del límite</p>
+      <p style="margin:6px 0 0;color:#3A1A1A;font-size:13px;">
+        Estás usando {capacity_pct}% del límite diario de Resend ({total}/{RESEND_DAILY_LIMIT}).
+        Tiempo de buscar alternativa o pasar a plan pago ($20/mes por 50k mails).
+      </p>
+    </div>"""
+    elif total >= 75:
+        alert_html = f"""
+    <div style="background:#fef3c7;border-left:4px solid #ca8a04;padding:14px 18px;border-radius:8px;margin-bottom:20px;">
+      <p style="margin:0;color:#ca8a04;font-weight:bold;font-size:14px;">📈 Crecimiento alto</p>
+      <p style="margin:6px 0 0;color:#3A1A1A;font-size:13px;">
+        {capacity_pct}% del límite diario usado ({total}/{RESEND_DAILY_LIMIT}). Empezar a pensar en alternativas.
+      </p>
+    </div>"""
+    else:
+        alert_html = ""
+
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#FAF6F1;font-family:Arial,sans-serif;">
@@ -58,9 +82,11 @@ def build_html(subscribers: list[dict]) -> str:
   <div style="height:3px;background:#D4A843;"></div>
   <div style="padding:28px 32px;">
     <p style="color:#888;font-size:12px;margin:0 0 16px;">{date_str}</p>
+    {alert_html}
     <div style="background:white;border-radius:12px;padding:24px;text-align:center;margin-bottom:20px;">
       <div style="font-size:48px;font-weight:bold;color:#6B2D2D;">{total}</div>
       <div style="font-size:14px;color:#888;margin-top:4px;">suscriptores activos</div>
+      <div style="font-size:11px;color:#aaa;margin-top:8px;">{capacity_pct}% del límite diario ({total}/{RESEND_DAILY_LIMIT})</div>
     </div>
     <p style="color:#6B2D2D;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 8px;">Por rol</p>
     <table style="width:100%;background:white;border-radius:10px;border-collapse:collapse;overflow:hidden;">
