@@ -286,6 +286,7 @@ def main():
     parser.add_argument("--fixtures", action="store_true", help="Send upcoming fixtures email")
     parser.add_argument("--results", action="store_true", help="Send results email")
     parser.add_argument("--dry-run", action="store_true", help="Print without sending")
+    parser.add_argument("--test", action="store_true", help="Send only to tomas.sanz00@gmail.com")
     args = parser.parse_args()
 
     if not args.fixtures and not args.results:
@@ -298,7 +299,11 @@ def main():
 
     print("Loading subscribers...")
     subscribers = load_subscribers()
-    print(f"  {len(subscribers)} subscribers found")
+    if args.test:
+        subscribers = [{"email": "tomas.sanz00@gmail.com", "nombre": "Tomas", "apellido": "Sanz", "rol": "Jugador"}]
+        print("  [TEST] Sending only to tomas.sanz00@gmail.com")
+    else:
+        print(f"  {len(subscribers)} subscribers found")
 
     print("Loading fixtures...")
     fixtures = load_fixtures()
