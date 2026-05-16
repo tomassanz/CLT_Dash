@@ -328,7 +328,7 @@ def main():
         print(f"  {len(results)} recent results found")
         if results:
             wins = sum(1 for r in results if r['result'] == 'Victoria')
-            subject = f"Resultados del CLT — {wins} victoria{'s' if wins != 1 else ''} esta semana"
+            subject = f"Resultados del CLT: {wins} victoria{'s' if wins != 1 else ''} esta semana"
         else:
             subject = "Resultados del CLT esta semana"
 
