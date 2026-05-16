@@ -1,0 +1,22 @@
+name: Newsletter — Monitor de suscriptores
+
+on:
+  schedule:
+    # Todos los viernes 17:00 Uruguay (20:00 UTC) — antes del envío de fixtures
+    - cron: "0 20 * * 5"
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Send subscriber count alert
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: python scraper/monitor_newsletter.py

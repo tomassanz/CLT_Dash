@@ -10,13 +10,12 @@ Dashboard web público que muestra toda la historia de partidos de fútbol del *
 
 ---
 
-## Estado actual del proyecto (al 15/05/2026 — actualizado sesión engagement)
+## Estado actual del proyecto (al 16/05/2026 — newsletter completo en producción)
 
 ### 📋 Planes pendientes (NO ejecutar sin coordinar)
 
 | Plan | Archivo | Estado |
 |---|---|---|
-| Newsletter semanal + pop-up de suscripción (MailerLite + GitHub Actions) | [docs/plan_newsletter.md](docs/plan_newsletter.md) | ⏸️ En standby. MailerLite configurado (cuenta creada, grupo CLT_FUTBOL, API key generado). Falta decidir si usar token del lado del cliente o mover a serverless (sacar `output: export`). Ver detalles abajo. |
 | Plan de engagement completo | [Plan_engagement.md](Plan_engagement.md) | 🔄 En ejecución — ver estado por feature abajo. |
 
 ### 📚 Documentación de APIs (NUEVA — Marzo 2026)
@@ -66,6 +65,9 @@ Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
 | **Feature 1.B — Botón Compartir** | ✅ Live | `ShareButton.tsx` en header de `MatchModal`. Native share en mobile, dropdown WhatsApp + copiar link en desktop. Mensaje siempre desde perspectiva CLT. |
 | **Feature 1.C — Preview OG por partido** | ✅ Live | `generateMetadata` en `app/partido/[id]/page.tsx`. Lee `matches.json` en build time. Genera título y descripción únicos por partido para preview en WhatsApp/redes. |
 | **Feature 1.A — Hero vivo** | ✅ Live | `HeroLiveStrip.tsx` en la home. Bloque superior: mejor resultado reciente (prioriza victorias con más goles, ventana 6-20 días, luego Mayores/Reserva). Bloque inferior: próximo partido aleatorio con foco en el finde. Ambos linkan a Actualidad. |
+| **Newsletter — Pop-up suscripción** | ✅ Live | `NewsletterPopup.tsx`. Aparece a los 5s en primera visita. Botón fijo "Suscribirme" siempre visible. Campos: nombre, apellido, email, rol. Guarda en Google Sheets via Apps Script. |
+| **Newsletter — Emails automáticos** | ✅ Live | `scraper/send_newsletter.py`. Viernes 18:00 UY: partidos del sábado/domingo/lunes. Martes 10:00 UY: resultados últimos 7 días. Desde `noticias@cltfutbol.com.uy` via Resend. Link de baja automática en cada email. |
+| **Newsletter — Monitor semanal** | ✅ Live | `scraper/monitor_newsletter.py`. Cada viernes 17:00 UY manda resumen de suscriptores (total + breakdown por rol) solo a tomas.sanz00@gmail.com. |
 
 ### ⏳ Pendiente
 
@@ -74,7 +76,7 @@ Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
 | **GitHub Actions (cron semanal)** | 🔴 Próxima instancia | `.github/workflows/update.yml`. Corre `extractor.py --incremental` + `json_generator.py` cada domingo y hace push automático. El `json_generator.py` ya incluye fixtures_live al final. |
 | **Fixtures juveniles: vuelta real** | 🟢 Cuando la liga los cargue | Sub-18/16/14 tienen vuelta tentativa generada. Cuando la liga cargue los partidos de vuelta en la API, el próximo `json_generator.py` los reemplazará automáticamente. |
 | **Fixtures: partidos suspendidos/reprogramados** | 🟡 Futuro | Como fixtures_live viene directo de la API, si la liga actualiza la fecha de un partido reprogramado, se refleja automáticamente en el próximo `json_generator.py`. |
-| **Newsletter / suscripción (Feature 5.A)** | ⏸️ Standby | Ver sección MailerLite abajo. Decisión pendiente: token client-side vs mover a serverless. |
+| **Resend — envío de confirmación al suscribirse** | 🟡 Futuro | Mandar email de bienvenida automático cuando alguien llena el form. Requiere webhook o polling del Sheet. |
 | **Feature 3.A — Banner de rachas** | ⏸️ Descartado por ahora | Requiere cambios en scraper. Tomas quiere repensarlo. |
 | **Feature 2.A — "Hoy hace X años"** | ❌ Descartado | Demasiado dependiente del azar para generar engagement consistente. |
 
