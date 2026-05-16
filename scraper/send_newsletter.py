@@ -249,26 +249,23 @@ def send_email(api_key: str, to: str, subject: str, html: str, dry_run: bool) ->
         print(f"[DRY RUN] To: {to} | Subject: {subject}")
         return True
 
-    payload = json.dumps({
-        "from": FROM_EMAIL,
-        "reply_to": REPLY_TO,
-        "to": [to],
-        "subject": subject,
-        "html": html,
-    }).encode()
-
-    req = urllib.request.Request(
-        "https://api.resend.com/emails",
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
-            return r.status == 200
+        import requests as req_lib
+        r = req_lib.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={
+                "from": FROM_EMAIL,
+                "reply_to": REPLY_TO,
+                "to": [to],
+                "subject": subject,
+                "html": html,
+            },
+            timeout=15,
+        )
+        if not r.ok:
+            print(f"  ERROR sending to {to}: {r.status_code} {r.text}", file=sys.stderr)
+        return r.ok
     except Exception as e:
         print(f"  ERROR sending to {to}: {e}", file=sys.stderr)
         return False
