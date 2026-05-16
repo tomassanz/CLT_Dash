@@ -99,7 +99,7 @@ def get_weekend_matches(fixtures: dict) -> list[dict]:
 
 
 def get_recent_results(fixtures: dict) -> list[dict]:
-    """Return played matches from the last 5 days."""
+    """Return played matches from the last 7 days (martes to martes)."""
     results = []
     for cat in fixtures.get("categories", []):
         for m in cat.get("matches", []):
@@ -108,7 +108,7 @@ def get_recent_results(fixtures: dict) -> list[dict]:
             if m.get("score_home") is None or m.get("score_away") is None:
                 continue
             d = -days_from_today(m["date"])  # positive = past
-            if d < 0 or d > 5:
+            if d < 0 or d > 7:
                 continue
             clt_goals = m["score_home"] if m["home"] else m["score_away"]
             opp_goals = m["score_away"] if m["home"] else m["score_home"]
@@ -233,11 +233,11 @@ def build_results_html(nombre: str, email: str, results: list[dict]) -> str:
 <body><div class="wrap">
   <div class="header">
     <p class="header-title">CLT Fútbol</p>
-    <p class="header-sub">Los resultados del fin de semana</p>
+    <p class="header-sub">Los resultados de la semana</p>
   </div>
   <div class="gold-line"></div>
   <div class="content">
-    <p style="color:#3A1A1A;font-size:15px;">Hola {nombre}, acá van los resultados del CLT del fin de semana.</p>
+    <p style="color:#3A1A1A;font-size:15px;">Hola {nombre}, acá van los resultados del CLT de esta semana.</p>
     <p class="section-title">Resultados recientes</p>
     {body}
     <div class="cta"><a href="https://www.cltfutbol.com.uy/actualidad">Ver todos los resultados</a></div>
@@ -315,7 +315,7 @@ def main():
         print(f"  {len(results)} recent results found")
         subject = f"📊 Resultados del CLT — {len(results)} partido{'s' if len(results) != 1 else ''}"
         if not results:
-            subject = "📊 Resultados del CLT"
+            subject = "📊 Resultados del CLT — esta semana"
 
     sent = 0
     failed = 0
