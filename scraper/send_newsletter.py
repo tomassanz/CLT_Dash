@@ -66,17 +66,28 @@ def to_proper(s: str) -> str:
 # ── Match builders ────────────────────────────────────────────────────────────
 
 def get_weekend_matches(fixtures: dict) -> list[dict]:
-    """Return upcoming matches in the next 7 days that fall on Sat/Sun."""
+    """Return upcoming matches for the immediate next weekend (Sat/Sun)."""
+    today = date.today()
+    # Find the coming Saturday (if today is Fri/Sat/Sun, take this weekend)
+    days_to_sat = (5 - today.weekday()) % 7
+    if days_to_sat == 0 and today.weekday() == 5:
+        days_to_sat = 0  # today is Saturday
+    elif days_to_sat == 0:
+        days_to_sat = 7
+    next_sat = today + timedelta(days=days_to_sat)
+    next_sun = next_sat + timedelta(days=1)
+    # If today is Sunday, use today + yesterday (this weekend)
+    if today.weekday() == 6:
+        next_sun = today
+        next_sat = today - timedelta(days=1)
+    weekend_dates = {next_sat.isoformat(), next_sun.isoformat()}
+
     matches = []
     for cat in fixtures.get("categories", []):
         for m in cat.get("matches", []):
             if m.get("played") or m.get("tentative"):
                 continue
-            d = days_from_today(m["date"])
-            if d < 0 or d > 7:
-                continue
-            target = date.fromisoformat(m["date"])
-            if target.weekday() not in (5, 6):  # Sat=5, Sun=6
+            if m["date"] not in weekend_dates:
                 continue
             matches.append({
                 "category": cat["name"],
