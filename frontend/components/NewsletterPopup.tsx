@@ -17,6 +17,11 @@ export default function NewsletterPopup() {
   const [status, setStatus]     = useState<Status>("idle")
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.has("suscribirme")) {
+      setVisible(true)
+      return
+    }
     if (localStorage.getItem(STORAGE_KEY)) return
     const t = setTimeout(() => setVisible(true), 5000)
     return () => clearTimeout(t)
