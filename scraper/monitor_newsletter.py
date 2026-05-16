@@ -93,7 +93,7 @@ def main():
             json={
                 "from": FROM_EMAIL,
                 "to": [TO_EMAIL],
-                "subject": f"📋 CLT Newsletter — {len(subscribers)} suscriptores",
+                "subject": f"CLT · {len(subscribers)} suscriptores al {date.today().strftime('%d/%m')}",
                 "html": html,
             },
             timeout=15,

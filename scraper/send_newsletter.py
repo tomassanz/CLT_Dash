@@ -259,6 +259,7 @@ def send_email(api_key: str, to: str, subject: str, html: str, dry_run: bool) ->
 
     try:
         import requests as req_lib
+        unsubscribe = unsubscribe_url(to)
         r = req_lib.post(
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {api_key}"},
@@ -268,6 +269,10 @@ def send_email(api_key: str, to: str, subject: str, html: str, dry_run: bool) ->
                 "to": [to],
                 "subject": subject,
                 "html": html,
+                "headers": {
+                    "List-Unsubscribe": f"<{unsubscribe}>",
+                    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                },
             },
             timeout=15,
         )
@@ -311,16 +316,21 @@ def main():
     if args.fixtures:
         matches = get_weekend_matches(fixtures)
         print(f"  {len(matches)} weekend matches found")
-        subject = f"⚽ Este finde juega el CLT — {len(matches)} partido{'s' if len(matches) != 1 else ''}"
-        if not matches:
-            subject = "⚽ Próximos partidos del CLT"
+        # Build a personalized subject mentioning the main rival of the weekend
+        main_match = next((m for m in matches if "may" in m["category"].lower()), matches[0] if matches else None)
+        if main_match:
+            subject = f"El CLT juega vs {main_match['opponent']} este {format_date_es(main_match['date']).split()[0]}"
+        else:
+            subject = "Próximos partidos del CLT"
 
     if args.results:
         results = get_recent_results(fixtures)
         print(f"  {len(results)} recent results found")
-        subject = f"📊 Resultados del CLT — {len(results)} partido{'s' if len(results) != 1 else ''}"
-        if not results:
-            subject = "📊 Resultados del CLT — esta semana"
+        if results:
+            wins = sum(1 for r in results if r['result'] == 'Victoria')
+            subject = f"Resultados del CLT — {wins} victoria{'s' if wins != 1 else ''} esta semana"
+        else:
+            subject = "Resultados del CLT esta semana"
 
     sent = 0
     failed = 0
