@@ -15,7 +15,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 SUBSCRIBERS_URL = "https://script.google.com/macros/s/AKfycby-BSwDW-HVyXb6wVHXlwjY99nSsWI7lAE-d0bmJgJOBtRji1NKJwtDAG9UQu72pgMqmA/exec"
-FROM_EMAIL = "noticias@cltfutbol.com.uy"
+FROM_EMAIL = "CLT Fútbol <noticias@cltfutbol.com.uy>"
 REPLY_TO = "tomas.sanz00@gmail.com"
 DATA_DIR = Path(__file__).parent.parent / "frontend" / "public" / "data"
 
