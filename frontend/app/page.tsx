@@ -160,29 +160,32 @@ export default function LandingPage() {
           </div>
 
           {/* CTA */}
-          <div className={`mt-8 flex flex-col sm:flex-row items-stretch justify-center gap-3 transition-all duration-500 delay-600 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+          <div className={`mt-6 sm:mt-8 flex flex-col sm:flex-row items-stretch justify-center gap-2 sm:gap-3 max-w-md sm:max-w-none mx-auto transition-all duration-500 delay-600 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <Link
               href="/actualidad"
-              className="flex items-center justify-center px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 border hover:bg-white/10"
+              className="flex items-center justify-center px-5 sm:px-6 py-2 sm:py-2.5 rounded text-xs sm:text-sm font-bold uppercase tracking-wide transition-colors duration-200 border hover:bg-white/10"
               style={{ color: "#D4A843", borderColor: "#D4A84366" }}
             >
               Actualidad
             </Link>
             <Link
               href="/historia"
-              className="flex items-center justify-center px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 border hover:bg-white/10"
+              className="flex items-center justify-center px-5 sm:px-6 py-2 sm:py-2.5 rounded text-xs sm:text-sm font-bold uppercase tracking-wide transition-colors duration-200 border hover:bg-white/10"
               style={{ color: "#D4A843", borderColor: "#D4A84366" }}
             >
               Explorar la historia
             </Link>
             <Link
               href="/jugador"
-              className="flex items-center justify-center px-7 py-3 rounded text-sm sm:text-base font-bold uppercase tracking-wider transition-colors duration-200 border hover:bg-white/10"
+              className="flex items-center justify-center px-5 sm:px-6 py-2 sm:py-2.5 rounded text-xs sm:text-sm font-bold uppercase tracking-wide transition-colors duration-200 border hover:bg-white/10"
               style={{ color: "#D4A843", borderColor: "#D4A84366" }}
             >
               Buscar jugadores
             </Link>
           </div>
+
+          {/* Spacer para que el último CTA no se pise con el botón flotante de Suscribirme */}
+          <div className="h-12 sm:h-0" aria-hidden="true" />
         </div>
       </section>
 
