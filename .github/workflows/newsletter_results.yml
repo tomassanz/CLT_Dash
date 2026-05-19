@@ -20,10 +20,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install deps
+        working-directory: scraper
+        run: pip install -r requirements.txt
 
       - name: Send results newsletter
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SUBSCRIBERS_API_KEY: ${{ secrets.SUBSCRIBERS_API_KEY }}
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             python scraper/send_newsletter.py --results --dry-run
