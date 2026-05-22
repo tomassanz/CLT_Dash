@@ -2,8 +2,8 @@ name: Newsletter — Partidos del finde
 
 on:
   schedule:
-    # Viernes 18:00 Uruguay (21:00 UTC)
-    - cron: "0 21 * * 5"
+    # Viernes 12:00 Uruguay (15:00 UTC)
+    - cron: "0 15 * * 5"
   workflow_dispatch:
     inputs:
       dry_run:

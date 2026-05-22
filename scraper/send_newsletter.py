@@ -264,6 +264,9 @@ def build_results_html(nombre: str, email: str, results: list[dict]) -> str:
 # safely under it.
 SEND_DELAY_SECONDS = 0.25
 RATE_LIMIT_RETRY_DELAY_SECONDS = 2.0
+# Resend free tier daily cap. If subscribers exceed this, we sample at random
+# to avoid hitting the limit (until we migrate to a paid plan).
+MAX_DAILY_SENDS = 100
 
 
 def send_email(api_key: str, to: str, subject: str, html: str, dry_run: bool) -> bool:
@@ -334,6 +337,12 @@ def main():
         print(f"  [ONLY] {len(subscribers)} of {len(only_set)} requested emails matched in subscribers")
     else:
         print(f"  {len(subscribers)} subscribers found")
+        if len(subscribers) > MAX_DAILY_SENDS:
+            import random
+            skipped = len(subscribers) - MAX_DAILY_SENDS
+            subscribers = random.sample(subscribers, MAX_DAILY_SENDS)
+            print(f"  [CAP] Over Resend daily limit — sending to {MAX_DAILY_SENDS} random "
+                  f"subscribers, {skipped} will not get this email", file=sys.stderr)
 
     print("Loading fixtures...")
     fixtures = load_fixtures()
