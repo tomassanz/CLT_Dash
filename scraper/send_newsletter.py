@@ -260,36 +260,48 @@ def build_results_html(nombre: str, email: str, results: list[dict]) -> str:
 
 # ── Resend sender ─────────────────────────────────────────────────────────────
 
+# Resend free tier limits sends to 5/second. We throttle to 4/second to stay
+# safely under it.
+SEND_DELAY_SECONDS = 0.25
+RATE_LIMIT_RETRY_DELAY_SECONDS = 2.0
+
+
 def send_email(api_key: str, to: str, subject: str, html: str, dry_run: bool) -> bool:
     if dry_run:
         print(f"[DRY RUN] To: {to} | Subject: {subject}")
         return True
 
-    try:
-        import requests as req_lib
-        unsubscribe = unsubscribe_url(to)
-        r = req_lib.post(
-            "https://api.resend.com/emails",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={
-                "from": FROM_EMAIL,
-                "reply_to": REPLY_TO,
-                "to": [to],
-                "subject": subject,
-                "html": html,
-                "headers": {
-                    "List-Unsubscribe": f"<{unsubscribe}>",
-                    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-                },
-            },
-            timeout=15,
-        )
-        if not r.ok:
+    import time
+    import requests as req_lib
+    unsubscribe = unsubscribe_url(to)
+    payload = {
+        "from": FROM_EMAIL,
+        "reply_to": REPLY_TO,
+        "to": [to],
+        "subject": subject,
+        "html": html,
+        "headers": {
+            "List-Unsubscribe": f"<{unsubscribe}>",
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
+    }
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    for attempt in (1, 2):
+        try:
+            r = req_lib.post("https://api.resend.com/emails", headers=headers,
+                             json=payload, timeout=15)
+            if r.ok:
+                return True
+            if r.status_code == 429 and attempt == 1:
+                time.sleep(RATE_LIMIT_RETRY_DELAY_SECONDS)
+                continue
             print(f"  ERROR sending to {to}: {r.status_code} {r.text}", file=sys.stderr)
-        return r.ok
-    except Exception as e:
-        print(f"  ERROR sending to {to}: {e}", file=sys.stderr)
-        return False
+            return False
+        except Exception as e:
+            print(f"  ERROR sending to {to}: {e}", file=sys.stderr)
+            return False
+    return False
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -300,6 +312,7 @@ def main():
     parser.add_argument("--results", action="store_true", help="Send results email")
     parser.add_argument("--dry-run", action="store_true", help="Print without sending")
     parser.add_argument("--test", action="store_true", help="Send only to tomas.sanz00@gmail.com")
+    parser.add_argument("--only", default="", help="Comma-separated emails to limit sending to (case-insensitive)")
     args = parser.parse_args()
 
     if not args.fixtures and not args.results:
@@ -315,6 +328,10 @@ def main():
     if args.test:
         subscribers = [{"email": "tomas.sanz00@gmail.com", "nombre": "Tomas", "apellido": "Sanz", "rol": "Jugador"}]
         print("  [TEST] Sending only to tomas.sanz00@gmail.com")
+    elif args.only:
+        only_set = {e.strip().lower() for e in args.only.split(",") if e.strip()}
+        subscribers = [s for s in subscribers if s.get("email", "").strip().lower() in only_set]
+        print(f"  [ONLY] {len(subscribers)} of {len(only_set)} requested emails matched in subscribers")
     else:
         print(f"  {len(subscribers)} subscribers found")
 
@@ -340,9 +357,10 @@ def main():
         else:
             subject = "Resultados del CLT esta semana"
 
+    import time
     sent = 0
     failed = 0
-    for sub in subscribers:
+    for i, sub in enumerate(subscribers):
         email = sub.get("email", "").strip()
         nombre = sub.get("nombre", "").strip() or "hincha"
         if not email:
@@ -352,6 +370,9 @@ def main():
             html = build_fixtures_html(nombre, email, matches)
         else:
             html = build_results_html(nombre, email, results)
+
+        if i > 0 and not args.dry_run:
+            time.sleep(SEND_DELAY_SECONDS)
 
         ok = send_email(api_key, email, subject, html, args.dry_run)
         if ok:
