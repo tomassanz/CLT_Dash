@@ -66,8 +66,8 @@ Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
 | **Feature 1.C — Preview OG por partido** | ✅ Live | `generateMetadata` en `app/partido/[id]/page.tsx`. Lee `matches.json` en build time. Genera título y descripción únicos por partido para preview en WhatsApp/redes. |
 | **Feature 1.A — Hero vivo** | ✅ Live | `HeroLiveStrip.tsx` en la home. Bloque superior: mejor resultado reciente (prioriza victorias con más goles, ventana 6-20 días, luego Mayores/Reserva). Bloque inferior: próximo partido aleatorio con foco en el finde. Ambos linkan a Actualidad. |
 | **Newsletter — Pop-up suscripción** | ✅ Live | `NewsletterPopup.tsx`. Aparece a los 5s en primera visita. Botón fijo "Suscribirme" siempre visible. Campos: nombre, apellido, email, rol. Guarda en Google Sheets via Apps Script. |
-| **Newsletter — Emails automáticos** | ✅ Live | `scraper/send_newsletter.py`. Viernes 18:00 UY: partidos del sábado/domingo/lunes. Martes 10:00 UY: resultados últimos 7 días. Desde `noticias@cltfutbol.com.uy` via Resend. Link de baja automática en cada email. |
-| **Newsletter — Monitor semanal** | ✅ Live | `scraper/monitor_newsletter.py`. Cada viernes 17:00 UY manda resumen de suscriptores (total + breakdown por rol) solo a tomas.sanz00@gmail.com. Incluye alerta amarilla a partir de 75 suscriptores y roja desde 90 (límite Resend free: 100/día). |
+| **Newsletter — Emails automáticos** | ✅ Live | `scraper/send_newsletter.py`. Viernes 12:00 UY: partidos del sábado/domingo/lunes. Martes 10:00 UY: resultados últimos 7 días. Desde `noticias@cltfutbol.com.uy` via Resend. Throttle de 0.25s entre envíos (Resend limita a 5/seg). Si los suscriptores superan los 100, manda a 100 random (cap del free tier). Link de baja automática en cada email. |
+| **Newsletter — Monitor semanal** | ✅ Live | `scraper/monitor_newsletter.py`. Cada viernes 11:00 UY manda resumen de suscriptores (total + breakdown por rol) solo a tomas.sanz00@gmail.com. Incluye alerta amarilla a partir de 75 suscriptores y roja desde 90 (límite Resend free: 100/día). |
 
 ### 📧 Límites de Resend y plan de migración
 

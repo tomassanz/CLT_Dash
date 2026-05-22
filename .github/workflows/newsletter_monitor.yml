@@ -2,8 +2,8 @@ name: Newsletter — Monitor de suscriptores
 
 on:
   schedule:
-    # Todos los viernes 17:00 Uruguay (20:00 UTC) — antes del envío de fixtures
-    - cron: "0 20 * * 5"
+    # Todos los viernes 11:00 Uruguay (14:00 UTC) — 1 hora antes del envío de fixtures
+    - cron: "0 14 * * 5"
   workflow_dispatch:
 
 jobs:
