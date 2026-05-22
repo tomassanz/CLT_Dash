@@ -10,6 +10,10 @@ on:
         description: "Dry run (no envía emails reales)"
         type: boolean
         default: false
+      only:
+        description: "Solo enviar a estos emails (separados por coma). Dejar vacío para enviar a todos."
+        type: string
+        default: ""
 
 jobs:
   send:
@@ -31,9 +35,10 @@ jobs:
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           SUBSCRIBERS_API_KEY: ${{ secrets.SUBSCRIBERS_API_KEY }}
+          ONLY_EMAILS: ${{ github.event.inputs.only }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
-            python scraper/send_newsletter.py --results --dry-run
-          else
-            python scraper/send_newsletter.py --results
-          fi
+          ARGS="--results"
+          if [ "$DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          if [ -n "$ONLY_EMAILS" ]; then ARGS="$ARGS --only=$ONLY_EMAILS"; fi
+          python scraper/send_newsletter.py $ARGS
