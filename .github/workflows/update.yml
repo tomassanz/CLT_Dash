@@ -1,8 +1,11 @@
-name: Update data (daily)
+name: Update data
 
 on:
   schedule:
-    - cron: "30 11 * * *"   # 08:30 Uruguay (UTC-3)
+    # Cada hora viernes-lunes (días con partidos): vie=5, sáb=6, dom=0, lun=1
+    - cron: "0 * * * 5,6,0,1"
+    # 08:30 Uruguay (11:30 UTC) martes-jueves: mar=2, mié=3, jue=4
+    - cron: "30 11 * * 2,3,4"
   workflow_dispatch:
 
 permissions:

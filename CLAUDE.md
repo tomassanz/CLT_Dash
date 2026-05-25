@@ -585,13 +585,16 @@ Tiene 3 tabs: **Resultados | Tablas | Próximos**
 
 ## Próximos pasos (en orden)
 
-### Paso 1 — GitHub Actions (automatización diaria) ✅
+### Paso 1 — GitHub Actions (automatización) ✅
 
 **Archivo:** `.github/workflows/update.yml`  
-**Cron:** `30 11 * * *` (08:30 hora Uruguay / 11:30 UTC)  
+**Crons:**
+- `0 * * * 5,6,0,1` — cada hora viernes, sábado, domingo y lunes (días con partidos)
+- `30 11 * * 2,3,4` — 08:30 hora Uruguay (11:30 UTC) martes, miércoles y jueves
+
 **Trigger manual:** también desde Actions → Run workflow (`workflow_dispatch`)
 
-Flujo de la corrida diaria:
+Flujo de cada corrida:
 1. Checkout del repo (incluye `scraper/clt.db` versionada).
 2. Setup Python 3.12 + `pip install requests`.
 3. Captura `baseline` = cantidad actual de partidos en `matches.json`.
