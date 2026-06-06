@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { Fragment, useEffect, useRef, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Calendar, Home, Plane, Trophy, Clock, ChevronRight } from "lucide-react"
 import type { Match, MatchDetail, LeagueContext, SeriesLeagueContext, FixturesLive, FixtureCategoryLive } from "@/lib/types"
@@ -52,6 +52,19 @@ function formatDateLong(iso: string): string {
   return date.toLocaleDateString("es-UY", { weekday: "short", day: "numeric", month: "short" })
 }
 
+function relativeDays(iso: string): string | null {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const matchDate = new Date(iso + "T12:00:00")
+  matchDate.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((matchDate.getTime() - today.getTime()) / 86_400_000)
+  if (diffDays < 0) return null
+  if (diffDays === 0) return "Hoy"
+  if (diffDays === 1) return "Mañana"
+  if (diffDays <= 30) return `en ${diffDays} días`
+  return null
+}
+
 function matchStatus(iso: string): "past" | "today" | "future" {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -78,7 +91,7 @@ function labelName(label: string): string {
 const SECTIONS: { id: Section; label: string; icon: typeof Calendar }[] = [
   { id: "resultados", label: "Últimos resultados",  icon: Clock },
   { id: "tablas",     label: "Tablas",      icon: Trophy },
-  { id: "fixtures",   label: "Próximos",    icon: Calendar },
+  { id: "fixtures",   label: "Partidos",    icon: Calendar },
 ]
 
 // ── Result card (mobile-friendly) ────────────────────────────────────────────
@@ -280,6 +293,11 @@ export default function ActualidadPage() {
   // Tablas state
   const [activeLeagueTab, setActiveLeagueTab] = useState<string>("")
 
+  // Refs para anclar la línea de tiempo al próximo partido
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const nextMatchRef = useRef<HTMLDivElement>(null)
+  const catTabsRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     // Cargar fixtures_live.json (categorías con API)
     loadFixturesLive()
@@ -309,6 +327,25 @@ export default function ActualidadPage() {
       if (sorted.length > 0) setActiveLeagueTab(sorted[0].label)
     }).catch(() => {})
   }, [])
+
+  // Anclar la vista al próximo partido (línea de tiempo estilo "hoy")
+  useEffect(() => {
+    if (activeSection !== "fixtures") return
+    const id = requestAnimationFrame(() => {
+      const c = scrollContainerRef.current
+      if (!c) return
+      const target = nextMatchRef.current
+      if (target) {
+        const stickyOffset = catTabsRef.current?.offsetHeight ?? 0
+        const delta = target.getBoundingClientRect().top - c.getBoundingClientRect().top - stickyOffset - 8
+        c.scrollTop += delta
+      } else {
+        // Sin próximo partido (temporada terminada): mostrar lo más reciente
+        c.scrollTop = c.scrollHeight
+      }
+    })
+    return () => cancelAnimationFrame(id)
+  }, [activeSection, activeCatTab, fixturesLive, staticCategories])
 
   // Season 113 matches
   const season113Matches = allMatches
@@ -383,7 +420,7 @@ export default function ActualidadPage() {
       </div>
 
       {/* ── Section Content ── */}
-      <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl border" style={{ borderColor: "#D4A843" }}>
+      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto rounded-2xl border" style={{ borderColor: "#D4A843" }}>
 
         {/* ════════════════════════════════════════════════════════════════════ */}
         {/* SECTION 1: Próximos (Fixtures)                                      */}
@@ -397,8 +434,12 @@ export default function ActualidadPage() {
             </div>
 
             <div className="px-4 py-5 sm:px-5" style={{ backgroundColor: "#FDFAF6" }}>
-              {/* Category tabs */}
-              <div className="flex gap-1.5 overflow-x-auto pb-3 -mx-1 px-1 scrollbar-hide">
+              {/* Category tabs (fijas arriba al scrollear) */}
+              <div
+                ref={catTabsRef}
+                className="sticky top-0 z-20 flex gap-1.5 overflow-x-auto pt-1 pb-3 -mx-1 px-1 scrollbar-hide"
+                style={{ backgroundColor: "#FDFAF6" }}
+              >
                 {allCategories.map(cat => (
                   <button
                     key={cat.id}
@@ -450,18 +491,34 @@ export default function ActualidadPage() {
                         : undefined
 
                       const isTentative = m.tentative === true
+                      const rel = relativeDays(m.date)
 
                       return (
-                        <div
-                          key={m.fecha}
-                          className={`rounded-xl border px-3 py-3 sm:px-4 transition-all ${
-                            isTentative ? "opacity-40 border-dashed" : isNext ? "ring-2 shadow-sm" : isPlayed ? "opacity-60" : ""
-                          }`}
-                          style={{
-                            borderColor: isNext ? "#D4A843" : "#F0E8DF",
-                            backgroundColor: isNext ? "#FFFCF5" : "white",
-                          }}
-                        >
+                        <Fragment key={m.fecha}>
+                          {isNext && (
+                            <div ref={nextMatchRef} className="flex items-center gap-2 pt-1 pb-0.5">
+                              <span
+                                className="h-px flex-1"
+                                style={{ background: "repeating-linear-gradient(to right, #D4A843 0 6px, transparent 6px 10px)" }}
+                              />
+                              <span className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: "#B8860B" }}>
+                                Próximo{rel ? ` · ${rel}` : ""}
+                              </span>
+                              <span
+                                className="h-px flex-1"
+                                style={{ background: "repeating-linear-gradient(to right, #D4A843 0 6px, transparent 6px 10px)" }}
+                              />
+                            </div>
+                          )}
+                          <div
+                            className={`rounded-xl border px-3 py-3 sm:px-4 transition-all ${
+                              isTentative ? "opacity-40 border-dashed" : isNext ? "ring-2 shadow-sm" : isPlayed ? "opacity-60" : ""
+                            }`}
+                            style={{
+                              borderColor: isNext ? "#D4A843" : "#F0E8DF",
+                              backgroundColor: isNext ? "#FFFCF5" : "white",
+                            }}
+                          >
                           {/* Top row: fecha number + home/away + badges */}
                           <div className="flex items-center justify-between gap-2 mb-2">
                             <div className="flex items-center gap-2 min-w-0">
@@ -536,7 +593,8 @@ export default function ActualidadPage() {
                               </>
                             )}
                           </div>
-                        </div>
+                          </div>
+                        </Fragment>
                       )
                     })}
                   </div>
