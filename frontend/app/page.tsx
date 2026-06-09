@@ -151,7 +151,7 @@ export default function LandingPage() {
           <p className={`text-sm sm:text-base mt-5 leading-relaxed max-w-lg mx-auto transition-all duration-500 delay-400 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
             style={{ color: "#FFFFFF88" }}>
             Por primera vez, todos los detalles del CLT en la Liga Universitaria
-            — desde los primeros registros hasta el ultimo fin de semana.
+            — desde los primeros registros hasta el último fin de semana.
           </p>
 
           {/* Live strip */}
@@ -209,7 +209,7 @@ export default function LandingPage() {
             </div>
             <div>
               <AnimatedNumber target={stats.categories} />
-              <div className="text-xs uppercase tracking-[0.2em] mt-2 font-medium" style={{ color: "#FFFFFF77" }}>Categorias</div>
+              <div className="text-xs uppercase tracking-[0.2em] mt-2 font-medium" style={{ color: "#FFFFFF77" }}>Categorías</div>
             </div>
           </div>
         </div>
@@ -221,24 +221,24 @@ export default function LandingPage() {
       <section className="py-14 sm:py-18" style={{ backgroundColor: "#FAF6F1" }}>
         <div className="max-w-4xl mx-auto px-6">
           <h2 className="font-display text-2xl sm:text-3xl font-black uppercase tracking-wide text-center mb-10" style={{ color: "#3A1A1A" }}>
-            ¿QUE VAS A ENCONTRAR?
+            ¿QUÉ VAS A ENCONTRAR?
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <FeatureCard
               title="Todos los resultados"
-              desc="Cada partido, cada gol, cada fecha. La historia completa del futbol de CLT en la Liga Universitaria."
+              desc="Cada partido, cada gol, cada fecha. La historia completa del fútbol de CLT en la Liga Universitaria."
             />
             <FeatureCard
               title="Fichas de jugadores"
-              desc="Busca cualquier jugador y encontra sus estadisticas: partidos, goles, tarjetas y mas."
+              desc="Buscá cualquier jugador y encontrá sus estadísticas: partidos, goles, tarjetas y más."
             />
             <FeatureCard
-              title="Todas las categorias"
+              title="Todas las categorías"
               desc="Desde Plantel Superior hasta Sub 14, pasando por +32 y +40. Todo en un mismo lugar."
             />
             <FeatureCard
               title="Actualidad"
-              desc="Los resultados del ultimo fin de semana, actualizados automaticamente cada semana."
+              desc="Los resultados del último fin de semana, actualizados automáticamente cada semana."
             />
           </div>
         </div>
@@ -309,7 +309,7 @@ export default function LandingPage() {
             LA HISTORIA SE ESCRIBE CADA FIN DE SEMANA
           </h2>
           <p className="text-sm sm:text-base mt-4" style={{ color: "#FFFFFF77" }}>
-            Partidos, goles y estadisticas al dia. Siempre.
+            Partidos, goles y estadísticas al día. Siempre.
           </p>
           <div className="mt-8">
             <Link
