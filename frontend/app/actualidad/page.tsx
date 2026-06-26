@@ -1,7 +1,7 @@
 "use client"
 import { Fragment, useEffect, useRef, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { Calendar, Home, Plane, Trophy, Clock, ChevronRight } from "lucide-react"
+import { Calendar, Home, Plane, Trophy, Clock, ChevronRight, ChevronDown, ChevronUp } from "lucide-react"
 import type { Match, MatchDetail, LeagueContext, SeriesLeagueContext, FixturesLive, FixtureCategoryLive } from "@/lib/types"
 import { loadMatches, loadMatchDetail, loadLeagueContext, loadFixturesLive, rival, formatDate, toProperCase } from "@/lib/data"
 import ResultBadge from "@/components/ResultBadge"
@@ -293,6 +293,10 @@ export default function ActualidadPage() {
   // Tablas state
   const [activeLeagueTab, setActiveLeagueTab] = useState<string>("")
 
+  // Fixtures: partidos anteriores colapsados por defecto
+  const [pastExpanded, setPastExpanded] = useState(false)
+  useEffect(() => { setPastExpanded(false) }, [activeCatTab])
+
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -464,9 +468,9 @@ const activeLeagueCtx: SeriesLeagueContext | undefined = leagueSeries.find(s => 
                     const upcomingMatches = activeCat.matches.filter(m =>
                       m.played !== undefined ? !m.played : matchStatus(m.date) !== "past"
                     )
-                    const pastMatches = [...activeCat.matches.filter(m =>
+                    const pastMatches = activeCat.matches.filter(m =>
                       m.played !== undefined ? m.played : matchStatus(m.date) === "past"
-                    )].reverse()
+                    )
 
                     const renderMatchCard = (m: typeof activeCat.matches[0], isNext: boolean) => {
                       const isPlayed = m.played !== undefined ? m.played : matchStatus(m.date) === "past"
@@ -582,22 +586,25 @@ const activeLeagueCtx: SeriesLeagueContext | undefined = leagueSeries.find(s => 
 
                     return (
                       <div className="space-y-2">
-                        {upcomingMatches.map((m, i) => renderMatchCard(m, i === 0))}
-
-                        {pastMatches.length > 0 && (
-                          <>
-                            {upcomingMatches.length > 0 && (
-                              <div className="flex items-center gap-2 pt-2 pb-0.5">
-                                <span className="h-px flex-1" style={{ backgroundColor: "#E8DDD0" }} />
-                                <span className="text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: "#9B8B7A" }}>
-                                  Partidos anteriores
-                                </span>
-                                <span className="h-px flex-1" style={{ backgroundColor: "#E8DDD0" }} />
-                              </div>
-                            )}
-                            {pastMatches.map(m => renderMatchCard(m, false))}
-                          </>
+                        {/* Botón para ver/ocultar partidos ya jugados */}
+                        {pastMatches.length > 0 && upcomingMatches.length > 0 && (
+                          <button
+                            onClick={() => setPastExpanded(v => !v)}
+                            className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-xl border border-dashed transition-colors"
+                            style={{ borderColor: "#D4A843", color: "#B8860B" }}
+                          >
+                            {pastExpanded
+                              ? <><ChevronUp size={12} /> Ocultar partidos jugados</>
+                              : <><ChevronDown size={12} /> Ver {pastMatches.length} partido{pastMatches.length !== 1 ? "s" : ""} anterior{pastMatches.length !== 1 ? "es" : ""}</>
+                            }
+                          </button>
                         )}
+
+                        {/* Partidos ya jugados (colapsados por defecto) */}
+                        {(pastExpanded || upcomingMatches.length === 0) && pastMatches.map(m => renderMatchCard(m, false))}
+
+                        {/* Partidos próximos */}
+                        {upcomingMatches.map((m, i) => renderMatchCard(m, i === 0))}
                       </div>
                     )
                   })()}
