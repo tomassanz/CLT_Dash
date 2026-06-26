@@ -293,10 +293,7 @@ export default function ActualidadPage() {
   // Tablas state
   const [activeLeagueTab, setActiveLeagueTab] = useState<string>("")
 
-  // Refs para anclar la línea de tiempo al próximo partido
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const nextMatchRef = useRef<HTMLDivElement>(null)
-  const catTabsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // Cargar fixtures_live.json (categorías con API)
@@ -328,24 +325,15 @@ export default function ActualidadPage() {
     }).catch(() => {})
   }, [])
 
-  // Anclar la vista al próximo partido (línea de tiempo estilo "hoy")
+  // Scroll al tope cuando se cambia de categoría
   useEffect(() => {
     if (activeSection !== "fixtures") return
     const id = requestAnimationFrame(() => {
       const c = scrollContainerRef.current
-      if (!c) return
-      const target = nextMatchRef.current
-      if (target) {
-        const stickyOffset = catTabsRef.current?.offsetHeight ?? 0
-        const delta = target.getBoundingClientRect().top - c.getBoundingClientRect().top - stickyOffset - 8
-        c.scrollTop += delta
-      } else {
-        // Sin próximo partido (temporada terminada): mostrar lo más reciente
-        c.scrollTop = c.scrollHeight
-      }
+      if (c) c.scrollTop = 0
     })
     return () => cancelAnimationFrame(id)
-  }, [activeSection, activeCatTab, fixturesLive, staticCategories])
+  }, [activeSection, activeCatTab])
 
   // Season 113 matches
   const season113Matches = allMatches
@@ -391,8 +379,7 @@ export default function ActualidadPage() {
   }
 
   const activeCat = allCategories.find(c => c.id === activeCatTab)
-  const nextFechaForActive = activeCat ? findNextMatchForCategory(activeCat) : null
-  const activeLeagueCtx: SeriesLeagueContext | undefined = leagueSeries.find(s => s.label === activeLeagueTab)
+const activeLeagueCtx: SeriesLeagueContext | undefined = leagueSeries.find(s => s.label === activeLeagueTab)
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 sm:py-8 flex flex-col" style={{ minHeight: "calc(100vh - 160px)" }}>
@@ -436,7 +423,6 @@ export default function ActualidadPage() {
             <div className="px-4 py-5 sm:px-5" style={{ backgroundColor: "#FDFAF6" }}>
               {/* Category tabs (fijas arriba al scrollear) */}
               <div
-                ref={catTabsRef}
                 className="sticky top-0 z-20 flex gap-1.5 overflow-x-auto pt-1 pb-3 -mx-1 px-1 scrollbar-hide"
                 style={{ backgroundColor: "#FDFAF6" }}
               >
@@ -474,13 +460,16 @@ export default function ActualidadPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    {activeCat.matches.map(m => {
-                      // Para categorías live (fixtures_live.json) usamos played directamente
-                      // Para categorías estáticas (fixtures.json) usamos la fecha
-                      const isPlayed = m.played !== undefined ? m.played : matchStatus(m.date) === "past"
-                      const isNext = m.fecha === nextFechaForActive
+                  {(() => {
+                    const upcomingMatches = activeCat.matches.filter(m =>
+                      m.played !== undefined ? !m.played : matchStatus(m.date) !== "past"
+                    )
+                    const pastMatches = [...activeCat.matches.filter(m =>
+                      m.played !== undefined ? m.played : matchStatus(m.date) === "past"
+                    )].reverse()
 
+                    const renderMatchCard = (m: typeof activeCat.matches[0], isNext: boolean) => {
+                      const isPlayed = m.played !== undefined ? m.played : matchStatus(m.date) === "past"
                       const hasScore = isPlayed && m.score_home !== undefined && m.score_away !== undefined
                       const cltScore = m.home ? m.score_home : m.score_away
                       const oppScore = m.home ? m.score_away : m.score_home
@@ -489,14 +478,13 @@ export default function ActualidadPage() {
                           : cltScore! < oppScore! ? "#dc2626"
                           : "#ca8a04"
                         : undefined
-
                       const isTentative = m.tentative === true
-                      const rel = relativeDays(m.date)
+                      const rel = isNext ? relativeDays(m.date) : null
 
                       return (
                         <Fragment key={m.fecha}>
                           {isNext && (
-                            <div ref={nextMatchRef} className="flex items-center gap-2 pt-1 pb-0.5">
+                            <div className="flex items-center gap-2 pt-1 pb-0.5">
                               <span
                                 className="h-px flex-1"
                                 style={{ background: "repeating-linear-gradient(to right, #D4A843 0 6px, transparent 6px 10px)" }}
@@ -519,85 +507,100 @@ export default function ActualidadPage() {
                               backgroundColor: isNext ? "#FFFCF5" : "white",
                             }}
                           >
-                          {/* Top row: fecha number + home/away + badges */}
-                          <div className="flex items-center justify-between gap-2 mb-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div
-                                className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
-                                style={{
-                                  backgroundColor: isNext ? "#D4A843" : "#F5F0E8",
-                                  color: isNext ? "white" : "#6B2D2D",
-                                }}
-                              >
-                                {m.fecha}
+                            {/* Top row: fecha number + home/away + badges */}
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div
+                                  className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
+                                  style={{
+                                    backgroundColor: isNext ? "#D4A843" : "#F5F0E8",
+                                    color: isNext ? "white" : "#6B2D2D",
+                                  }}
+                                >
+                                  {m.fecha}
+                                </div>
+                                <span
+                                  className="text-[10px] font-medium flex items-center gap-0.5 px-1.5 py-0.5 rounded"
+                                  style={{
+                                    backgroundColor: m.home ? "#E8F5E9" : "#FFF3E0",
+                                    color: m.home ? "#2E7D32" : "#E65100",
+                                  }}
+                                >
+                                  {m.home ? <Home size={9} /> : <Plane size={9} />}
+                                  {m.home ? "Local" : "Visitante"}
+                                </span>
                               </div>
-                              <span
-                                className="text-[10px] font-medium flex items-center gap-0.5 px-1.5 py-0.5 rounded"
-                                style={{
-                                  backgroundColor: m.home ? "#E8F5E9" : "#FFF3E0",
-                                  color: m.home ? "#2E7D32" : "#E65100",
-                                }}
-                              >
-                                {m.home ? <Home size={9} /> : <Plane size={9} />}
-                                {m.home ? "Local" : "Visitante"}
+                              {isNext && (
+                                <span
+                                  className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                                  style={{ backgroundColor: "#D4A843", color: "white" }}
+                                >
+                                  PRÓXIMO
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Teams + score */}
+                            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                              <span className="text-sm font-semibold text-right leading-tight break-words" style={{ color: "#3A1A1A" }}>
+                                {m.home ? "CLT" : toProperCase(m.opponent)}
+                              </span>
+                              {hasScore ? (
+                                <span
+                                  className="text-sm font-bold tabular-nums whitespace-nowrap px-2 py-0.5 rounded"
+                                  style={{ color: resultColor, backgroundColor: resultColor + "22" }}
+                                >
+                                  {m.score_home}-{m.score_away}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400 px-2">vs</span>
+                              )}
+                              <span className="text-sm font-semibold text-left leading-tight break-words" style={{ color: "#3A1A1A" }}>
+                                {m.home ? toProperCase(m.opponent) : "CLT"}
                               </span>
                             </div>
-                            {isNext && (
-                              <span
-                                className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
-                                style={{ backgroundColor: "#D4A843", color: "white" }}
-                              >
-                                PRÓXIMO
-                              </span>
-                            )}
-                          </div>
 
-                          {/* Teams + score — full-width grid so long names wrap */}
-                          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                            <span
-                              className="text-sm font-semibold text-right leading-tight break-words"
-                              style={{ color: "#3A1A1A" }}
-                            >
-                              {m.home ? "CLT" : toProperCase(m.opponent)}
-                            </span>
-                            {hasScore ? (
-                              <span
-                                className="text-sm font-bold tabular-nums whitespace-nowrap px-2 py-0.5 rounded"
-                                style={{ color: resultColor, backgroundColor: resultColor + "22" }}
-                              >
-                                {m.score_home}-{m.score_away}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-gray-400 px-2">vs</span>
-                            )}
-                            <span
-                              className="text-sm font-semibold text-left leading-tight break-words"
-                              style={{ color: "#3A1A1A" }}
-                            >
-                              {m.home ? toProperCase(m.opponent) : "CLT"}
-                            </span>
-                          </div>
-
-                          {/* Date / time / venue */}
-                          <div className="mt-2 text-[11px] text-gray-400 flex items-center gap-1 flex-wrap">
-                            <Calendar size={10} />
-                            {isTentative ? (
-                              <span className="italic">2ª Rueda (fecha a confirmar)</span>
-                            ) : (
-                              <>
-                                <span>{formatDateLong(m.date)}</span>
-                                {m.time && <span>· {m.time}</span>}
-                                {!isPlayed && m.venue && m.venue.toUpperCase() !== "CANCHA A FIJAR" && (
-                                  <span className="truncate">· {toProperCase(m.venue)}</span>
-                                )}
-                              </>
-                            )}
-                          </div>
+                            {/* Date / time / venue */}
+                            <div className="mt-2 text-[11px] text-gray-400 flex items-center gap-1 flex-wrap">
+                              <Calendar size={10} />
+                              {isTentative ? (
+                                <span className="italic">2ª Rueda (fecha a confirmar)</span>
+                              ) : (
+                                <>
+                                  <span>{formatDateLong(m.date)}</span>
+                                  {m.time && <span>· {m.time}</span>}
+                                  {!isPlayed && m.venue && m.venue.toUpperCase() !== "CANCHA A FIJAR" && (
+                                    <span className="truncate">· {toProperCase(m.venue)}</span>
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </div>
                         </Fragment>
                       )
-                    })}
-                  </div>
+                    }
+
+                    return (
+                      <div className="space-y-2">
+                        {upcomingMatches.map((m, i) => renderMatchCard(m, i === 0))}
+
+                        {pastMatches.length > 0 && (
+                          <>
+                            {upcomingMatches.length > 0 && (
+                              <div className="flex items-center gap-2 pt-2 pb-0.5">
+                                <span className="h-px flex-1" style={{ backgroundColor: "#E8DDD0" }} />
+                                <span className="text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: "#9B8B7A" }}>
+                                  Partidos anteriores
+                                </span>
+                                <span className="h-px flex-1" style={{ backgroundColor: "#E8DDD0" }} />
+                              </div>
+                            )}
+                            {pastMatches.map(m => renderMatchCard(m, false))}
+                          </>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </>
               )}
             </div>
