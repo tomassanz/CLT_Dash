@@ -9,39 +9,18 @@ Modes:
 
 import argparse
 import json
-import os
 import sys
-import urllib.parse
-import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 
-SUBSCRIBERS_URL = "https://script.google.com/macros/s/AKfycbyaiac7v3g21NgLZ9cZK7xISffYOIhuJHW7xIA0Rrju2IjMBmh7dVThsabM2MNuyO7o1g/exec"
+from newsletter_common import load_subscribers, unsubscribe_url
+
 FROM_EMAIL = "CLT Fútbol <noticias@cltfutbol.com.uy>"
 REPLY_TO = "tomas.sanz00@gmail.com"
 DATA_DIR = Path(__file__).parent.parent / "frontend" / "public" / "data"
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
-
-def load_subscribers() -> list[dict]:
-    api_key = os.environ.get("SUBSCRIBERS_API_KEY", "")
-    if not api_key:
-        sys.exit("ERROR: SUBSCRIBERS_API_KEY not set")
-    url = f"{SUBSCRIBERS_URL}?key={urllib.parse.quote(api_key)}"
-    with urllib.request.urlopen(url, timeout=15) as r:
-        raw = json.loads(r.read())
-    if isinstance(raw, dict) and raw.get("error"):
-        sys.exit(f"ERROR: API rejected request ({raw['error']}) — verificá SUBSCRIBERS_API_KEY")
-    # Deduplicate by email (keep first occurrence)
-    seen = set()
-    unique = []
-    for sub in raw:
-        email = sub.get("email", "").strip().lower()
-        if email and email not in seen:
-            seen.add(email)
-            unique.append(sub)
-    return unique
 
 
 def load_fixtures() -> dict:
@@ -170,11 +149,6 @@ body { margin: 0; padding: 0; background: #FAF6F1; font-family: Arial, sans-seri
 .footer { text-align: center; padding: 20px 32px; color: #999; font-size: 11px; border-top: 1px solid #E8DDD0; }
 .no-matches { color: #888; font-size: 14px; font-style: italic; text-align: center; padding: 20px 0; }
 """
-
-def unsubscribe_url(email: str) -> str:
-    from urllib.parse import quote
-    return f"{SUBSCRIBERS_URL}?action=unsubscribe&email={quote(email)}"
-
 
 def build_fixtures_html(nombre: str, email: str, matches: list[dict]) -> str:
     if matches:

@@ -3,35 +3,14 @@ Sends a weekly subscriber count alert to tomas.sanz00@gmail.com.
 Runs every Friday before the fixtures newsletter.
 """
 
-import json
 import os
 import sys
-import urllib.parse
-import urllib.request
 from datetime import date
 
-SUBSCRIBERS_URL = "https://script.google.com/macros/s/AKfycbyaiac7v3g21NgLZ9cZK7xISffYOIhuJHW7xIA0Rrju2IjMBmh7dVThsabM2MNuyO7o1g/exec"
+from newsletter_common import load_subscribers
+
 FROM_EMAIL = "CLT Fútbol <noticias@cltfutbol.com.uy>"
 TO_EMAIL = "tomas.sanz00@gmail.com"
-
-
-def load_subscribers() -> list[dict]:
-    api_key = os.environ.get("SUBSCRIBERS_API_KEY", "")
-    if not api_key:
-        sys.exit("ERROR: SUBSCRIBERS_API_KEY not set")
-    url = f"{SUBSCRIBERS_URL}?key={urllib.parse.quote(api_key)}"
-    with urllib.request.urlopen(url, timeout=15) as r:
-        raw = json.loads(r.read())
-    if isinstance(raw, dict) and raw.get("error"):
-        sys.exit(f"ERROR: API rejected request ({raw['error']}) — verificá SUBSCRIBERS_API_KEY")
-    seen = set()
-    unique = []
-    for sub in raw:
-        email = sub.get("email", "").strip().lower()
-        if email and email not in seen:
-            seen.add(email)
-            unique.append(sub)
-    return unique
 
 
 RESEND_DAILY_LIMIT = 100
