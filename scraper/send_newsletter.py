@@ -257,6 +257,31 @@ def main():
     if not api_key and not args.dry_run:
         sys.exit("ERROR: RESEND_API_KEY not set")
 
+    # Primero mirar si hay algo para contar; si no lo hay, no se envía nada
+    # (y ni siquiera se consulta la lista de suscriptores).
+    print("Loading fixtures...")
+    fixtures = load_fixtures()
+
+    if args.fixtures:
+        matches = get_weekend_matches(fixtures)
+        print(f"  {len(matches)} weekend matches found")
+        if not matches:
+            # Parate de fútbol o fin de semana libre: no molestar a los suscriptores.
+            print("No hay partidos este fin de semana — no se envía ningún email.")
+            return
+        # Build a personalized subject mentioning the main rival of the weekend
+        main_match = next((m for m in matches if "may" in m["category"].lower()), matches[0])
+        subject = f"El CLT juega vs {main_match['opponent']} este {format_date_es(main_match['date']).split()[0]}"
+
+    if args.results:
+        results = get_recent_results(fixtures)
+        print(f"  {len(results)} recent results found")
+        if not results:
+            print("No hay resultados esta semana — no se envía ningún email.")
+            return
+        wins = sum(1 for r in results if r['result'] == 'Victoria')
+        subject = f"Resultados del CLT: {wins} victoria{'s' if wins != 1 else ''} esta semana"
+
     print("Loading subscribers...")
     subscribers = load_subscribers()
     if args.test:
@@ -274,28 +299,6 @@ def main():
             subscribers = random.sample(subscribers, MAX_DAILY_SENDS)
             print(f"  [CAP] Over Resend daily limit — sending to {MAX_DAILY_SENDS} random "
                   f"subscribers, {skipped} will not get this email", file=sys.stderr)
-
-    print("Loading fixtures...")
-    fixtures = load_fixtures()
-
-    if args.fixtures:
-        matches = get_weekend_matches(fixtures)
-        print(f"  {len(matches)} weekend matches found")
-        # Build a personalized subject mentioning the main rival of the weekend
-        main_match = next((m for m in matches if "may" in m["category"].lower()), matches[0] if matches else None)
-        if main_match:
-            subject = f"El CLT juega vs {main_match['opponent']} este {format_date_es(main_match['date']).split()[0]}"
-        else:
-            subject = "Próximos partidos del CLT"
-
-    if args.results:
-        results = get_recent_results(fixtures)
-        print(f"  {len(results)} recent results found")
-        if results:
-            wins = sum(1 for r in results if r['result'] == 'Victoria')
-            subject = f"Resultados del CLT: {wins} victoria{'s' if wins != 1 else ''} esta semana"
-        else:
-            subject = "Resultados del CLT esta semana"
 
     import time
     sent = 0
