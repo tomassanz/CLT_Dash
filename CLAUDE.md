@@ -69,6 +69,16 @@ Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
 | **Newsletter — Emails automáticos** | ✅ Live | `scraper/send_newsletter.py`. Viernes 12:00 UY: partidos del sábado/domingo/lunes. Martes 10:00 UY: resultados últimos 7 días. Desde `noticias@cltfutbol.com.uy` via Resend. Throttle de 0.25s entre envíos (Resend limita a 5/seg). Si los suscriptores superan los 100, manda a 100 random (cap del free tier). Link de baja automática en cada email. |
 | **Newsletter — Monitor semanal** | ✅ Live | `scraper/monitor_newsletter.py`. Cada viernes 11:00 UY manda resumen de suscriptores (total + breakdown por rol) solo a tomas.sanz00@gmail.com. Incluye alerta amarilla a partir de 75 suscriptores y roja desde 90 (límite Resend free: 100/día). |
 
+### 📬 Troubleshooting del newsletter (julio 2026)
+
+La lista de suscriptores vive en Google Sheets y se descarga vía Google Apps Script, que a veces tarda en responder (cold start). `scraper/newsletter_common.py` tiene el `load_subscribers()` compartido con **4 intentos, timeout de 45s y esperas de 5/15/30s entre intentos** — antes fallaba a la primera con `TimeoutError`.
+
+| Síntoma | Causa probable | Solución |
+|---|---|---|
+| Workflow de newsletter falló con `TimeoutError` en `load_subscribers` | Google Apps Script lento incluso tras 4 intentos | Re-correr manual: Actions → workflow correspondiente → Run workflow |
+| Falló el envío a algunos suscriptores | Red o rate limit de Resend | El script reintenta una vez por email; si igual falla, re-correr con el campo "only" con esos emails |
+| Monitor no llegó el viernes | Idem timeout | Re-correr manual "Newsletter — Monitor de suscriptores"; no manda emails a suscriptores, solo a Tomás |
+
 ### 📧 Límites de Resend y plan de migración
 
 **Plan actual:** Resend free
