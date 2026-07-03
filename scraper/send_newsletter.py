@@ -13,10 +13,9 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-from newsletter_common import load_subscribers, unsubscribe_url
+from newsletter_common import (SEND_DELAY_SECONDS, load_subscribers, send_email,
+                               unsubscribe_url)
 
-FROM_EMAIL = "CLT Fútbol <noticias@cltfutbol.com.uy>"
-REPLY_TO = "tomas.sanz00@gmail.com"
 DATA_DIR = Path(__file__).parent.parent / "frontend" / "public" / "data"
 
 
@@ -232,56 +231,11 @@ def build_results_html(nombre: str, email: str, results: list[dict]) -> str:
 </div></body></html>"""
 
 
-# ── Resend sender ─────────────────────────────────────────────────────────────
+# ── Resend limits ─────────────────────────────────────────────────────────────
 
-# Resend free tier limits sends to 5/second. We throttle to 4/second to stay
-# safely under it.
-SEND_DELAY_SECONDS = 0.25
-RATE_LIMIT_RETRY_DELAY_SECONDS = 2.0
 # Resend free tier daily cap. If subscribers exceed this, we sample at random
 # to avoid hitting the limit (until we migrate to a paid plan).
 MAX_DAILY_SENDS = 100
-
-
-def send_email(api_key: str, to: str, subject: str, html: str, dry_run: bool) -> bool:
-    if dry_run:
-        print(f"[DRY RUN] To: {to} | Subject: {subject}")
-        return True
-
-    import time
-    import requests as req_lib
-    unsubscribe = unsubscribe_url(to)
-    payload = {
-        "from": FROM_EMAIL,
-        "reply_to": REPLY_TO,
-        "to": [to],
-        "subject": subject,
-        "html": html,
-        "headers": {
-            "List-Unsubscribe": f"<{unsubscribe}>",
-            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-        },
-    }
-    headers = {"Authorization": f"Bearer {api_key}"}
-
-    for attempt in (1, 2):
-        try:
-            r = req_lib.post("https://api.resend.com/emails", headers=headers,
-                             json=payload, timeout=15)
-            if r.ok:
-                return True
-            if r.status_code == 429 and attempt == 1:
-                time.sleep(RATE_LIMIT_RETRY_DELAY_SECONDS)
-                continue
-            print(f"  ERROR sending to {to}: {r.status_code} {r.text}", file=sys.stderr)
-            return False
-        except Exception as e:
-            if attempt == 1:
-                time.sleep(RATE_LIMIT_RETRY_DELAY_SECONDS)
-                continue
-            print(f"  ERROR sending to {to}: {e}", file=sys.stderr)
-            return False
-    return False
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────

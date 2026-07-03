@@ -7,9 +7,8 @@ import os
 import sys
 from datetime import date
 
-from newsletter_common import load_subscribers
+from newsletter_common import FROM_EMAIL, load_subscribers
 
-FROM_EMAIL = "CLT Fútbol <noticias@cltfutbol.com.uy>"
 TO_EMAIL = "tomas.sanz00@gmail.com"
 
 

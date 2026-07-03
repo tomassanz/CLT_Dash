@@ -68,6 +68,7 @@ Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
 | **Newsletter — Pop-up suscripción** | ✅ Live | `NewsletterPopup.tsx`. Aparece a los 5s en primera visita. Botón fijo "Suscribirme" siempre visible. Campos: nombre, apellido, email, rol. Guarda en Google Sheets via Apps Script. |
 | **Newsletter — Emails automáticos** | ✅ Live | `scraper/send_newsletter.py`. Viernes 12:00 UY: partidos del sábado/domingo/lunes. Martes 10:00 UY: resultados últimos 7 días. Desde `noticias@cltfutbol.com.uy` via Resend. Throttle de 0.25s entre envíos (Resend limita a 5/seg). Si los suscriptores superan los 100, manda a 100 random (cap del free tier). Link de baja automática en cada email. |
 | **Newsletter — Monitor semanal** | ✅ Live | `scraper/monitor_newsletter.py`. Cada viernes 11:00 UY manda resumen de suscriptores (total + breakdown por rol) solo a tomas.sanz00@gmail.com. Incluye alerta amarilla a partir de 75 suscriptores y roja desde 90 (límite Resend free: 100/día). |
+| **Newsletter — Email de bienvenida** | ✅ Live | `scraper/send_welcome.py` + workflow `newsletter_welcome.yml` (cada hora, minuto 40). Detecta suscriptores nuevos comparando el Sheet contra `scraper/welcomed_emails.json` (versionado en git) y les manda bienvenida vía Resend. Primera corrida siembra el archivo con los suscriptores existentes sin mandar emails. Si un envío falla, se marca igual como saludado para no reintentar cada hora. |
 
 ### 📬 Troubleshooting del newsletter (julio 2026)
 
@@ -108,7 +109,6 @@ La lista de suscriptores vive en Google Sheets y se descarga vía Google Apps Sc
 | **GitHub Actions (cron semanal)** | 🔴 Próxima instancia | `.github/workflows/update.yml`. Corre `extractor.py --incremental` + `json_generator.py` cada domingo y hace push automático. El `json_generator.py` ya incluye fixtures_live al final. |
 | **Fixtures juveniles: vuelta real** | 🟢 Cuando la liga los cargue | Sub-18/16/14 tienen vuelta tentativa generada. Cuando la liga cargue los partidos de vuelta en la API, el próximo `json_generator.py` los reemplazará automáticamente. |
 | **Fixtures: partidos suspendidos/reprogramados** | 🟡 Futuro | Como fixtures_live viene directo de la API, si la liga actualiza la fecha de un partido reprogramado, se refleja automáticamente en el próximo `json_generator.py`. |
-| **Resend — envío de confirmación al suscribirse** | 🟡 Futuro | Mandar email de bienvenida automático cuando alguien llena el form. Requiere webhook o polling del Sheet. |
 | **Feature 3.A — Banner de rachas** | ⏸️ Descartado por ahora | Requiere cambios en scraper. Tomas quiere repensarlo. |
 | **Feature 2.A — "Hoy hace X años"** | ❌ Descartado | Demasiado dependiente del azar para generar engagement consistente. |
 
