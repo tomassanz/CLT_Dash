@@ -66,7 +66,7 @@ Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
 | **Feature 1.C — Preview OG por partido** | ✅ Live | `generateMetadata` en `app/partido/[id]/page.tsx`. Lee `matches.json` en build time. Genera título y descripción únicos por partido para preview en WhatsApp/redes. |
 | **Feature 1.A — Hero vivo** | ✅ Live | `HeroLiveStrip.tsx` en la home. Bloque superior: mejor resultado reciente (prioriza victorias con más goles, ventana 6-20 días, luego Mayores/Reserva). Bloque inferior: próximo partido aleatorio con foco en el finde. Ambos linkan a Actualidad. |
 | **Newsletter — Pop-up suscripción** | ✅ Live | `NewsletterPopup.tsx`. Aparece a los 5s en primera visita. Botón fijo "Suscribirme" siempre visible. Campos: nombre, apellido, email, rol. Guarda en Google Sheets via Apps Script. |
-| **Newsletter — Emails automáticos** | ✅ Live | `scraper/send_newsletter.py`. Viernes 12:00 UY: partidos del sábado/domingo/lunes. Martes 10:00 UY: resultados últimos 7 días. **Si no hay partidos el finde (parate) o no hay resultados en la semana, NO se envía nada** — el script corta antes de consultar suscriptores. Desde `noticias@cltfutbol.com.uy` via Resend. Throttle de 0.25s entre envíos (Resend limita a 5/seg). Si los suscriptores superan los 100, manda a 100 random (cap del free tier). Link de baja automática en cada email. |
+| **Newsletter — Emails automáticos** | ✅ Live | `scraper/send_newsletter.py`. Viernes 12:00 UY: partidos de los próximos 7 días (sábado a viernes — antes era solo sáb/dom/lun y se perdían las categorías que juegan entre semana, como Más 48 los martes). Martes 10:00 UY: resultados últimos 7 días. **Si no hay partidos el finde (parate) o no hay resultados en la semana, NO se envía nada** — el script corta antes de consultar suscriptores. Desde `noticias@cltfutbol.com.uy` via Resend. Throttle de 0.25s entre envíos (Resend limita a 5/seg). Si los suscriptores superan los 100, manda a 100 random (cap del free tier). Link de baja automática en cada email. |
 | **Newsletter — Monitor semanal** | ✅ Live | `scraper/monitor_newsletter.py`. Cada viernes 11:00 UY manda resumen de suscriptores (total + breakdown por rol) solo a tomas.sanz00@gmail.com. Incluye alerta amarilla a partir de 75 suscriptores y roja desde 90 (límite Resend free: 100/día). |
 | **Newsletter — Email de bienvenida** | ✅ Live | `scraper/send_welcome.py` + workflow `newsletter_welcome.yml` (cada hora, minuto 40). Detecta suscriptores nuevos comparando el Sheet contra `scraper/welcomed_emails.json` (versionado en git) y les manda bienvenida vía Resend. Primera corrida siembra el archivo con los suscriptores existentes sin mandar emails. Si un envío falla, se marca igual como saludado para no reintentar cada hora. |
 
@@ -614,9 +614,26 @@ Flujo de cada corrida:
    - `matches.json` es lista no vacía y tiene ≥ baseline partidos.
    - `last_updated.json` tiene `updated_at` y `latest_season` válidos.
    - `fixtures_live.json` tiene al menos una categoría con partidos.
-7. `git add scraper/clt.db frontend/public/data` y detecta cambios.
+7. **Detecta cambios reales** con `scraper/should_commit.py` (ver abajo).
 8. Si hay cambios: commit como `github-actions[bot]` con mensaje `chore(data): actualización automática YYYY-MM-DD` y push a `main`.
-9. Dispara explícitamente `gh-pages.yml` con `gh workflow run` (el push del bot NO dispara workflows por diseño del `GITHUB_TOKEN`).
+9. Dispara explícitamente `gh-pages.yml` con `gh workflow run` (el push del bot NO dispara workflows por diseño del `GITHUB_TOKEN`). **Reintenta 5 veces** (5s, 15s, 30s, 60s) porque la API de GitHub devuelve 503 cada tanto; si igual no sale, deja un warning y **no rompe el workflow** — los datos ya están pusheados y la próxima corrida lo reintenta.
+
+#### `scraper/should_commit.py` — evita commits vacíos
+
+Cada corrida de `json_generator.py` reescribe dos timestamps aunque no haya
+novedades (`last_updated.json → updated_at` y `fixtures_live.json → generated`),
+y SQLite reescribe bytes internos de `clt.db` sin cambiar los datos. Sin filtro,
+el workflow horario commiteaba ~24 veces por día, disparando un build de Vercel
+y otro de GitHub Pages cada vez.
+
+El script compara el árbol contra el último commit **ignorando ese ruido**:
+JSONs sin los campos volátiles, y `clt.db` por su dump lógico de SQLite en lugar
+de los bytes del archivo. Si no hubo cambios reales revierte los archivos y no
+commitea; si los hubo, commitea todo (timestamps nuevos incluidos).
+
+Efecto práctico: se pasó de ~24 commits diarios a solo los que traen datos
+nuevos. `last_updated.json` ahora marca la última vez que **cambiaron los
+datos**, no la última corrida del cron (el frontend no muestra ese dato).
 
 Vercel redespliega solo con el push a `main` (usa su propia GitHub App, no depende del `GITHUB_TOKEN`).
 
@@ -625,7 +642,8 @@ Vercel redespliega solo con el push a `main` (usa su propia GitHub App, no depen
 | Síntoma | Causa probable | Solución |
 |---|---|---|
 | El workflow falló en "Health check" | API de la liga caída o intermitente | Esperar unas horas y correr manual (Actions → Run workflow) |
-| Corrió pero no hubo commit | No hubo partidos nuevos ni cambios en tablas | Normal entre semana, no hacer nada |
+| Corrió pero no hubo commit | No hubo datos nuevos (solo cambiaron timestamps) | **Normal y esperado** — `should_commit.py` los filtra. La mayoría de las corridas no commitean nada |
+| Warning "No se pudo disparar gh-pages.yml" | La API de GitHub devolvió 503 en los 5 intentos | No hacer nada: Vercel (el sitio principal) ya se actualizó. Si Pages quedó viejo, correr `gh-pages.yml` manual desde Actions |
 | Pages no se actualizó | El step `Trigger GitHub Pages rebuild` falló | Correr manual `gh-pages.yml` desde Actions |
 | Vercel no redesplegó | Integration desconectada en Vercel | Revisar Settings → Git en Vercel dashboard |
 | `clt.db` creció mucho | Normal, ~10 KB por partido nuevo | No hacer nada; de 2 MB hoy a ~4 MB en 10 años |

@@ -66,26 +66,37 @@ jobs:
           print(f"OK — matches={len(m)} (baseline {baseline}), season={lu['latest_season']}")
           PY
 
+      # Ignora el ruido de cada corrida (timestamps + bytes internos de SQLite)
+      # para no commitear ~24 veces por día sin datos nuevos.
       - name: Detect changes
         id: diff
-        run: |
-          git add scraper/clt.db frontend/public/data
-          if git diff --cached --quiet; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+        run: python scraper/should_commit.py
 
       - name: Commit & push
         if: steps.diff.outputs.changed == 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scraper/clt.db frontend/public/data
           git commit -m "chore(data): actualización automática $(date -u +'%Y-%m-%d')"
           git push
 
+      # El push del bot no dispara workflows (por diseño del GITHUB_TOKEN), así
+      # que hay que llamar a gh-pages a mano. La API de GitHub devuelve 503 cada
+      # tanto: se reintenta y, si igual no sale, se avisa sin romper el workflow
+      # (los datos ya se pushearon y la próxima corrida vuelve a intentar).
       - name: Trigger GitHub Pages rebuild
         if: steps.diff.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run gh-pages.yml --ref main
+        run: |
+          for delay in 5 15 30 60 0; do
+            if gh workflow run gh-pages.yml --ref main; then
+              echo "GitHub Pages rebuild disparado."
+              exit 0
+            fi
+            if [ "$delay" -eq 0 ]; then break; fi
+            echo "Falló el dispatch, reintentando en ${delay}s..."
+            sleep "$delay"
+          done
+          echo "::warning::No se pudo disparar gh-pages.yml (API de GitHub caída). Los datos ya están en main y Vercel se actualizó igual; la próxima corrida con datos nuevos lo reintenta."
