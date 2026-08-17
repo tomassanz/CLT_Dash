@@ -51,18 +51,23 @@ def to_proper(s: str) -> str:
 
 # ── Match builders ────────────────────────────────────────────────────────────
 
-def get_weekend_matches(fixtures: dict) -> list[dict]:
-    """Return upcoming matches for Sat/Sun/Mon of the coming weekend."""
+def get_upcoming_matches(fixtures: dict) -> list[dict]:
+    """Return upcoming matches from the coming Saturday through the next Friday.
+
+    El email sale los viernes, así que la ventana cubre los 7 días hasta el
+    próximo envío: ningún partido queda sin anunciar ni se anuncia dos veces.
+    Antes la ventana era solo sábado/domingo/lunes y se perdían categorías que
+    juegan entre semana (Más 48 los martes, Sub-14 algunos miércoles).
+    """
     today = date.today()
     # Find coming Saturday (from Friday, that's tomorrow)
     days_to_sat = (5 - today.weekday()) % 7
     if days_to_sat == 0:
         days_to_sat = 7  # if today is Saturday, get next one
     next_sat = today + timedelta(days=days_to_sat)
-    weekend_dates = {
-        next_sat.isoformat(),
-        (next_sat + timedelta(days=1)).isoformat(),  # Sunday
-        (next_sat + timedelta(days=2)).isoformat(),  # Monday
+    upcoming_dates = {
+        (next_sat + timedelta(days=offset)).isoformat()
+        for offset in range(7)  # sábado a viernes
     }
 
     matches = []
@@ -70,7 +75,7 @@ def get_weekend_matches(fixtures: dict) -> list[dict]:
         for m in cat.get("matches", []):
             if m.get("played") or m.get("tentative"):
                 continue
-            if m["date"] not in weekend_dates:
+            if m["date"] not in upcoming_dates:
                 continue
             matches.append({
                 "category": cat["name"],
@@ -149,7 +154,23 @@ body { margin: 0; padding: 0; background: #FAF6F1; font-family: Arial, sans-seri
 .no-matches { color: #888; font-size: 14px; font-style: italic; text-align: center; padding: 20px 0; }
 """
 
+def fixtures_wording(matches: list[dict]) -> tuple[str, str, str]:
+    """Textos del email según si los partidos son solo del finde o de la semana.
+
+    (subtítulo del header, frase del saludo, título de la sección)
+    """
+    if matches and all(date.fromisoformat(m["date"]).weekday() >= 5 for m in matches):
+        return ("Este fin de semana juega el CLT",
+                "este finde el CLT tiene partidos",
+                "Partidos del fin de semana")
+    return ("Los próximos partidos del CLT",
+            "estos son los partidos que se vienen",
+            "Próximos partidos")
+
+
 def build_fixtures_html(nombre: str, email: str, matches: list[dict]) -> str:
+    header_sub, greeting, section_title = fixtures_wording(matches)
+
     if matches:
         cards = ""
         for m in matches:
@@ -169,19 +190,19 @@ def build_fixtures_html(nombre: str, email: str, matches: list[dict]) -> str:
             </div>"""
         body = cards
     else:
-        body = '<p class="no-matches">No hay partidos confirmados para este fin de semana.</p>'
+        body = '<p class="no-matches">No hay partidos confirmados para los próximos días.</p>'
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>{STYLE}</style></head>
 <body><div class="wrap">
   <div class="header">
     <p class="header-title">CLT Fútbol</p>
-    <p class="header-sub">Este fin de semana juega el CLT</p>
+    <p class="header-sub">{header_sub}</p>
   </div>
   <div class="gold-line"></div>
   <div class="content">
-    <p style="color:#3A1A1A;font-size:15px;">Hola {nombre}, este finde el CLT tiene partidos. ¡A alentar!</p>
-    <p class="section-title">Partidos del fin de semana</p>
+    <p style="color:#3A1A1A;font-size:15px;">Hola {nombre}, {greeting}. ¡A alentar!</p>
+    <p class="section-title">{section_title}</p>
     {body}
     <div class="cta"><a href="https://www.cltfutbol.com.uy/actualidad">Ver todos los próximos partidos</a></div>
   </div>
@@ -263,11 +284,11 @@ def main():
     fixtures = load_fixtures()
 
     if args.fixtures:
-        matches = get_weekend_matches(fixtures)
-        print(f"  {len(matches)} weekend matches found")
+        matches = get_upcoming_matches(fixtures)
+        print(f"  {len(matches)} upcoming matches found")
         if not matches:
-            # Parate de fútbol o fin de semana libre: no molestar a los suscriptores.
-            print("No hay partidos este fin de semana — no se envía ningún email.")
+            # Parate de fútbol o semana libre: no molestar a los suscriptores.
+            print("No hay partidos en los próximos 7 días — no se envía ningún email.")
             return
         # Build a personalized subject mentioning the main rival of the weekend
         main_match = next((m for m in matches if "may" in m["category"].lower()), matches[0])
