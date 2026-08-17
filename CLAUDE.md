@@ -631,9 +631,13 @@ JSONs sin los campos volátiles, y `clt.db` por su dump lógico de SQLite en lug
 de los bytes del archivo. Si no hubo cambios reales revierte los archivos y no
 commitea; si los hubo, commitea todo (timestamps nuevos incluidos).
 
-Efecto práctico: se pasó de ~24 commits diarios a solo los que traen datos
-nuevos. `last_updated.json` ahora marca la última vez que **cambiaron los
-datos**, no la última corrida del cron (el frontend no muestra ese dato).
+Efecto práctico: medido sobre los últimos 52 commits automáticos, **el 61% era
+ruido puro** (solo `fixtures_live.json` + `last_updated.json` + `clt.db`) y
+ahora se evita; el 38% restante traía datos reales y se sigue commiteando igual.
+
+`last_updated.json` pasa a marcar la última vez que **cambiaron los datos**, no
+la última corrida del cron. No afecta al sitio: `getLastUpdated()` está definido
+en `lib/data.ts` pero ningún componente lo usa.
 
 Vercel redespliega solo con el push a `main` (usa su propia GitHub App, no depende del `GITHUB_TOKEN`).
 
