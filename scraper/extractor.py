@@ -648,9 +648,13 @@ def fetch_league_season_data(conn, season: int):
             found_any = True
 
     # 2) Series publicadas en config.json — es la única forma de enterarse de las
-    #    series que la liga crea en la segunda fase (Rueda 2, Copa de Oro, Título...)
+    #    series que la liga crea en la segunda fase (Rueda 2, Copa de Oro, Título...).
+    #    Solo se prueban las de los torneos/categorías donde CLT juega: el resto
+    #    son secciones de otros clubes y solo gastarían requests (el job del cron
+    #    ya tarda ~17 min y una corrida se canceló por timeout).
+    clt_pairs = {(t, c) for t, c, _s in KNOWN_CATEGORY_COMBOS}
     for combo in get_config_combos(season):
-        if combo in tried:
+        if combo in tried or (combo[0], combo[1]) not in clt_pairs:
             continue
         tried.add(combo)
         if _try_combo(*combo):

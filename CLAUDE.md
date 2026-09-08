@@ -624,6 +624,8 @@ Tiene 3 tabs: **Resultados | Tablas | Próximos**
 
 **Trigger manual:** también desde Actions → Run workflow (`workflow_dispatch`)
 
+**Duración:** ~17 minutos por corrida (`timeout-minutes: 30`). La mayor parte se va en las consultas a la API de la liga, que responde lento.
+
 Flujo de cada corrida:
 1. Checkout del repo (incluye `scraper/clt.db` versionada).
 2. Setup Python 3.12 + `pip install requests`.
@@ -672,6 +674,7 @@ Vercel redespliega solo con el push a `main` (usa su propia GitHub App, no depen
 | Vercel no redesplegó | Integration desconectada en Vercel | Revisar Settings → Git en Vercel dashboard |
 | `clt.db` creció mucho | Normal, ~10 KB por partido nuevo | No hacer nada; de 2 MB hoy a ~4 MB en 10 años |
 | Hora del cron corre tarde | Scheduler de GH Actions saturado | Es esperable; se tolera jitter de minutos u horas |
+| El workflow se canceló solo a los ~20/30 min | Se pasó del `timeout-minutes` | Cada corrida tarda ~17 min (cientos de requests a la liga, que responde lento). El límite se subió de 20 a 30 min en sept/2026 porque una corrida se canceló a los 20m18s. Si empiezan a cancelarse de nuevo, revisar si la liga está respondiendo lento antes de subir más el límite |
 | Quiero forzar una corrida | — | Actions → "Update data (daily)" → Run workflow → main |
 | Una categoría no muestra próximos partidos (o muestra tentativos transparentes) | La liga arrancó una fase nueva con otra serie y `config.json` todavía no la publica, o `config.json` no respondió | Ver en el log del step "Generate JSONs" la línea `config.json: N series`. Si es 0, la liga estaba caída: se arregla solo en la próxima corrida. Si es >0 pero la categoría sigue sin próximos, la liga aún no cargó la serie nueva en `config.json`: esperar. Los partidos jugados salen igual de la base. |
 | "Últimos resultados" muestra un partido viejo de una categoría | El torneo cambió de nombre a algo que no matchea ningún patrón de `lib/categories.ts` | Agregar el patrón nuevo en `lib/categories.ts` Y en `CATEGORY_PATTERNS` de `json_generator.py` (deben ser iguales) |
