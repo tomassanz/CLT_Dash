@@ -541,7 +541,6 @@ def gen_league_context(conn, exclude_ids: set[str] | None = None):
 # ──────────────────────────────────────────────────────────────────────────────
 
 LIGA_BASE  = "https://ligauniversitaria.org.uy"
-CONFIG_URL = f"{LIGA_BASE}/config/config.json"
 SPORT_API  = "F"
 CLT_NAME   = "CARRASCO LAWN TENNIS"
 
@@ -615,8 +614,8 @@ def _is_bye(name: str | None) -> bool:
     return key in ("FECHALIBRE", "LIBRE") or key.startswith("FECHALIBRE")
 
 # Categorías con API del Sistema B — validadas el 14/04/2026 para temporada 113.
-# `serie` es el código de la fase regular; las series de fases posteriores se
-# descubren solas desde config.json (ver _config_series_for).
+# `serie` es el código de la fase regular; las series de fases posteriores se leen
+# de la base, donde el extractor ya las dejó (ver _series_for_category).
 FIXTURE_CATEGORIES = [
     {"id": "mayores",   "name": "Mayores",   "division": "Divisional A", "copa": "Copa Pilsen 0,0%",
      "torneo": "2",  "categoria": "1",  "serie": "A"},
@@ -653,52 +652,45 @@ def _api_get(url: str, params: dict) -> list:
                 print(f"  ⚠ Error fetching {url} params={params}: {e}")
     return []
 
-_config_cache: dict[int, list[dict]] = {}
-
-def _config_entries(season: int) -> list[dict]:
+def _clt_series_from_db(conn, season: int) -> dict[str, list[str]]:
     """
-    Lee el config.json oficial de la liga: lista todas las combinaciones válidas
-    de torneo/categoria/serie que el sitio de la liga muestra hoy. Es la única
-    forma de enterarse de las series nuevas de cada fase (Rueda 2, Copa de Oro...).
-    Retorna solo las entradas de fútbol de la temporada pedida, o [] si falla.
-    """
-    if season in _config_cache:
-        return _config_cache[season]
-    entries: list[dict] = []
-    for attempt in range(3):
-        try:
-            r = requests.get(CONFIG_URL, timeout=20)
-            r.raise_for_status()
-            data = r.json()
-            if isinstance(data, list):
-                for e in data:
-                    if not isinstance(e, dict):
-                        continue
-                    if str(e.get("Temporada", "")).strip() != str(season):
-                        continue
-                    if str(e.get("Deporte", "")).strip().upper() != SPORT_API:
-                        continue
-                    entries.append({
-                        "torneo":    str(e.get("Torneo", "")).strip(),
-                        "categoria": str(e.get("Categoria", "")).strip(),
-                        "serie":     str(e.get("Serie", "")).strip(),
-                    })
-            break
-        except Exception as e:
-            if attempt < 2:
-                time.sleep(1)
-            else:
-                print(f"  ⚠ No se pudo leer config.json ({e}) — solo series conocidas")
-    _config_cache[season] = entries
-    return entries
+    Series del Sistema B donde CLT juega esta temporada, agrupadas por torneo.
 
-def _config_series_for(cat: dict, season: int) -> list[str]:
-    """Códigos de serie a consultar para una categoría: el conocido + los de config.json."""
+    El extractor ya hizo el descubrimiento: `league_standings` solo guarda una
+    serie si CLT aparece en su tabla de posiciones, y sus labels tienen la forma
+    "T{torneo}/{serie}" (ej: "T18/18-3-", "T18/18-32"). Leerlas de acá evita que
+    el generador vuelva a bajar y sondear las ~180 series de config.json — eso
+    hacía que la corrida del cron se pasara del timeout.
+
+    Retorna {torneo: [serie, ...]}, o {} si la tabla no existe todavía.
+    """
+    tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+    if "league_standings" not in tables:
+        return {}
+
+    by_torneo: dict[str, list[str]] = {}
+    rows = conn.execute(
+        "SELECT DISTINCT series FROM league_standings WHERE season=?", (season,)
+    ).fetchall()
+    for r in rows:
+        label = (r["series"] or "").strip()
+        if not label.startswith("T") or "/" not in label:
+            continue
+        torneo, serie = label[1:].split("/", 1)
+        if torneo and serie:
+            by_torneo.setdefault(torneo, [])
+            if serie not in by_torneo[torneo]:
+                by_torneo[torneo].append(serie)
+    return by_torneo
+
+def _series_for_category(cat: dict, clt_series: dict[str, list[str]]) -> list[str]:
+    """Códigos de serie a consultar: el conocido primero, después los de la base."""
     series = [cat["serie"]]
-    for e in _config_entries(season):
-        if e["torneo"] == cat["torneo"] and e["categoria"] == cat["categoria"] \
-                and e["serie"] and e["serie"] not in series:
-            series.append(e["serie"])
+    for serie in clt_series.get(cat["torneo"], []):
+        if serie not in series:
+            series.append(serie)
     return series
 
 def _split_datetime(raw: str | None) -> tuple[str, str | None]:
@@ -795,15 +787,18 @@ def _db_category_matches(conn, season: int, cat_id: str, exclude_ids: set[str]) 
     return out
 
 def _fetch_category_fixtures(cat: dict, season: int, conn=None,
-                             exclude_ids: set[str] | None = None) -> dict:
+                             exclude_ids: set[str] | None = None,
+                             clt_series: dict[str, list[str]] | None = None) -> dict:
     """
     Arma el calendario de CLT de una categoría combinando:
       1. La base SQLite (Sistema A): todos los partidos jugados, de todas las fases.
       2. Sistema B `resultados` + `partidos` para cada serie de la categoría
-         (la conocida + las que aparezcan en config.json): jugados y PRÓXIMOS.
+         (la conocida + las de fases posteriores que el extractor ya descubrió):
+         jugados y PRÓXIMOS.
     Retorna la estructura de categoría lista para el JSON.
     """
     exclude_ids = exclude_ids or set()
+    clt_series = clt_series or {}
     today = datetime.now().date()
 
     # Clave (fecha, rival) → partido. Se cargan primero los de la base porque
@@ -818,7 +813,7 @@ def _fetch_category_fixtures(cat: dict, season: int, conn=None,
     played_db = [m for m in db_matches if m["played"]]
     current_stage = next((m.get("stage") for m in reversed(played_db) if m.get("stage")), None)
 
-    series_codes = _config_series_for(cat, season)
+    series_codes = _series_for_category(cat, clt_series)
     extra_found = []
     for serie in series_codes:
         params = {
@@ -926,11 +921,13 @@ def _fetch_category_fixtures(cat: dict, season: int, conn=None,
 def gen_fixtures_live(season: int, conn=None, exclude_ids: set[str] | None = None):
     """Genera fixtures_live.json con el calendario de CLT (base SQLite + APIs del Sistema B)."""
     print(f"  Bajando fixtures live (temporada {season})...")
-    n_config = len(_config_entries(season))
-    print(f"    config.json: {n_config} series de fútbol para la temporada {season}")
+    clt_series = _clt_series_from_db(conn, season) if conn is not None else {}
+    n_series = sum(len(v) for v in clt_series.values())
+    print(f"    series de CLT en la base: {n_series} "
+          f"({', '.join(f'T{t}/{s}' for t, ss in sorted(clt_series.items()) for s in ss) or 'ninguna'})")
     categories = []
     for cat in FIXTURE_CATEGORIES:
-        cat_data = _fetch_category_fixtures(cat, season, conn, exclude_ids)
+        cat_data = _fetch_category_fixtures(cat, season, conn, exclude_ids, clt_series)
         total = len(cat_data["matches"])
         played = sum(1 for m in cat_data["matches"] if m.get("played"))
         print(f"    {cat['name']}: {total} partidos ({played} jugados, {total - played} próximos)")
