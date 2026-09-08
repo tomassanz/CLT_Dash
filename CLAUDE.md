@@ -61,7 +61,8 @@ Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
 | **Datos T113** | ✅ Completos | 8 categorías (may, res, s20, s18, s16, s14, pre, +40) + tablas de posiciones |
 | **Actualidad — Resultados** | ✅ Rediseñado | Nuevo layout: barra de color lateral, marcador grande, CLT siempre a la izquierda, badge V/E/D prominente. Muestra último partido por categoría ordenado por fecha. |
 | **Actualidad — Tablas** | ✅ Listo | Standings completos con CLT resaltado + goleadores, tabs por categoría (8 categorías) |
-| **Actualidad — Próximos (fixtures live)** | ✅ Listo | `fixtures_live.json` generado por `json_generator.py` desde APIs Sistema B. 8 categorías. Sub-18/16/14 con vuelta tentativa (ida_vuelta). Muestra marcador si jugado, cancha si confirmada, badge PRÓXIMO. Partidos tentativos atenuados con borde punteado. |
+| **Actualidad — Próximos (fixtures live)** | ✅ Listo | `fixtures_live.json` generado por `json_generator.py`: partidos jugados desde la base SQLite (todas las fases) + próximos desde APIs Sistema B, descubriendo las series de cada fase en `config.json`. 9 categorías. Muestra marcador si jugado, cancha si confirmada, badge PRÓXIMO, separador cuando cambia la fase (2ª Rueda, Copa de Oro). Los partidos tentativos (atenuados, borde punteado) solo se generan mientras la liga no cargó la 2ª fase. |
+| **Segunda fase (sept 2026)** | ✅ Listo | Cuando arranca la 2ª fase la liga renombra torneos ("Mayores Masculino" → "MAYORES") y crea series nuevas ("SUB18 SERIE 3 RUEDA 2", "SUB14 COPA DE ORO"). Ahora las categorías se detectan por patrón (`classify_category` en Python, `lib/categories.ts` en el frontend) y las series nuevas se descubren solas desde `config.json`. Antes las juveniles quedaban con partidos transparentes y "Últimos resultados" mostraba partidos viejos. |
 | **Feature 1.B — Botón Compartir** | ✅ Live | `ShareButton.tsx` en header de `MatchModal`. Native share en mobile, dropdown WhatsApp + copiar link en desktop. Mensaje siempre desde perspectiva CLT. |
 | **Feature 1.C — Preview OG por partido** | ✅ Live | `generateMetadata` en `app/partido/[id]/page.tsx`. Lee `matches.json` en build time. Genera título y descripción únicos por partido para preview en WhatsApp/redes. |
 | **Feature 1.A — Hero vivo** | ✅ Live | `HeroLiveStrip.tsx` en la home. Bloque superior: mejor resultado reciente (prioriza victorias con más goles, ventana 6-20 días, luego Mayores/Reserva). Bloque inferior: próximo partido aleatorio con foco en el finde. Ambos linkan a Actualidad. |
@@ -107,7 +108,7 @@ La lista de suscriptores vive en Google Sheets y se descarga vía Google Apps Sc
 | Tarea | Prioridad | Detalle |
 |---|---|---|
 | **GitHub Actions (cron semanal)** | 🔴 Próxima instancia | `.github/workflows/update.yml`. Corre `extractor.py --incremental` + `json_generator.py` cada domingo y hace push automático. El `json_generator.py` ya incluye fixtures_live al final. |
-| **Fixtures juveniles: vuelta real** | 🟢 Cuando la liga los cargue | Sub-18/16/14 tienen vuelta tentativa generada. Cuando la liga cargue los partidos de vuelta en la API, el próximo `json_generator.py` los reemplazará automáticamente. |
+| **Fixtures: próximos de la 2ª fase** | 🟢 Automático | Los partidos jugados de la 2ª fase ya salen de la base. Los PRÓXIMOS dependen de que `config.json` de la liga publique la serie nueva (ver sección "Segunda fase" abajo). Si una categoría queda sin próximos, revisar el log del cron: "config.json: N series". |
 | **Fixtures: partidos suspendidos/reprogramados** | 🟡 Futuro | Como fixtures_live viene directo de la API, si la liga actualiza la fecha de un partido reprogramado, se refleja automáticamente en el próximo `json_generator.py`. |
 | **Feature 3.A — Banner de rachas** | ⏸️ Descartado por ahora | Requiere cambios en scraper. Tomas quiere repensarlo. |
 | **Feature 2.A — "Hoy hace X años"** | ❌ Descartado | Demasiado dependiente del azar para generar engagement consistente. |
@@ -331,13 +332,25 @@ En temporada 112 confirmado: `torneo=2, serie=AT` y `torneo=2, serie=A` tienen C
 
 El scraper (`fetch_league_season_data`) tiene `KNOWN_CATEGORY_COMBOS` con estos valores. Se prueban primero antes del brute-force de mayores.
 
-#### fixtures_live.json — Calendario CLT desde el Sistema B
+#### fixtures_live.json — Calendario CLT (base SQLite + Sistema B)
 
 **Archivo:** `frontend/public/data/fixtures_live.json`  
-**Generado por:** `json_generator.py` → función `gen_fixtures_live(season)`  
+**Generado por:** `json_generator.py` → función `gen_fixtures_live(season, conn, exclude_ids)`  
 **Se regenera automáticamente** cada vez que se corre `json_generator.py`
 
-Combina `resultados/api.php` (partidos jugados, con marcador) + `partidos/api.php` (próximos) para cada categoría, filtrando solo los partidos de CLT.
+Por cada categoría combina tres fuentes (se deduplican por fecha + rival):
+
+1. **Base SQLite (Sistema A)** — todos los partidos de CLT de la temporada, de todas las fases. El extractor recorre todos los torneos/series, así que los partidos de "RUEDA 2" o "COPA DE ORO" ya están. Cada partido se clasifica en su categoría con `classify_category()` (por patrón, no por nombre exacto) y recibe `stage` con el nombre de la fase (`stage_from_series()`).
+2. **`resultados/api.php`** (jugados) y **`partidos/api.php`** (PRÓXIMOS) del Sistema B, para el código de serie conocido de la categoría.
+3. **Lo mismo para cada serie extra de la categoría que aparezca en `config.json`** (`https://ligauniversitaria.org.uy/config/config.json`, lista oficial de secciones del sitio de la liga, filtrada por temporada + torneo + categoria). Así se descubren las series de la 2ª fase sin tocar código. Si `config.json` no responde, se sigue solo con la serie conocida.
+
+**Segunda fase — qué pasa y cómo se resuelve:**
+
+| Situación | Antes | Ahora |
+|---|---|---|
+| La liga crea una serie nueva para la 2ª fase (ej. Sub-18 "RUEDA 2") | El Sistema B solo se consultaba con el código de la 1ª fase → no encontraba nada → generaba partidos "tentativos" transparentes que nunca se jugaban | Los jugados salen de la base; los próximos se buscan en la serie nueva publicada en `config.json`. Los tentativos solo se generan si todavía NO hay ninguna fase posterior |
+| La liga renombra el torneo ("Mayores Masculino" → "MAYORES", "MÁS 40" → "MAS 40") | El frontend tenía los nombres fijos → "Últimos resultados" mostraba el último partido del nombre viejo (junio) | Clasificación por patrón en `frontend/lib/categories.ts` (espejo de la de Python) |
+| Tabla de posiciones de la 2ª fase | Solo la tabla de la 1ª fase | `extractor.py` también prueba las series de `config.json`; `league_context.json` trae `category` y `stage` por tabla y el tab Tablas muestra "Sub-18 · 2ª Rueda" cuando hay más de una |
 
 **Categorías en `FIXTURE_CATEGORIES` (json_generator.py):**
 
@@ -365,12 +378,15 @@ Combina `resultados/api.php` (partidos jugados, con marcador) + `partidos/api.ph
   "venue": "Complejo Woodlands School"
 }
 ```
-Para partidos jugados se agregan: `"played": true, "score_home": 1, "score_away": 4`
+Para partidos jugados se agregan: `"played": true, "score_home": 1, "score_away": 4, "match_id": "101594"`
+Campos opcionales: `"round": "7"` (número de fecha real de la liga, reinicia en cada fase — `fecha` es solo un contador secuencial), `"stage": "2ª Rueda"` (nombre de la fase; ausente en la fase regular).
 Para partidos de vuelta tentativos: `"tentative": true` — generados invirtiendo la localía cuando la API solo tiene ida. Se muestran atenuados con borde punteado y "2ª Rueda (fecha a confirmar)".
+
+Cada categoría además trae `"round"` con la fase actual ("1ª Rueda", "2ª Rueda", "Copa de Oro", "Ida y Vuelta") y `"series"` con los códigos del Sistema B consultados (el conocido + los descubiertos en `config.json`).
 
 **Nota importante:** `score_home`/`score_away` son siempre **local/visitante del partido** (igual que `matches.json`), NO goles de CLT. El frontend calcula el resultado de CLT a partir de `home: true/false`.
 
-**Categorías juveniles (Sub-18/16/14):** tienen `ida_vuelta: True` en `FIXTURE_CATEGORIES`. El generador crea partidos de vuelta tentativos (invirtiendo localía) cuando la API solo tiene ida. Los tentativos se reemplazan automáticamente cuando la liga los carga en la API.
+**Categorías juveniles (Sub-18/16/14):** tienen `ida_vuelta: True` en `FIXTURE_CATEGORIES`. Mientras la liga solo cargó la ida, el generador crea partidos de vuelta tentativos (invirtiendo localía). En cuanto aparece cualquier partido de una fase posterior (en la base o en una serie extra de `config.json`), los tentativos dejan de generarse.
 
 #### Los 5 endpoints del Sistema B
 
@@ -538,21 +554,24 @@ Modal reutilizable para ver el detalle de un partido sin salir de la página.
 Tiene 3 tabs: **Resultados | Tablas | Próximos**
 
 **Tab Resultados:**
-- Cards por categoría (Mayores, Reserva, Sub-20, Presenior, Más 40, Más 48) mostrando el último partido jugado de T113
+- Cards por categoría (las 9) mostrando el último partido jugado de T113, ordenadas por fecha
+- La categoría de cada partido se detecta con `classifyCategory(tournament, series)` de `lib/categories.ts` (por patrón: la liga renombra los torneos a mitad de temporada)
 - Badge V/E/D + marcador (local-visitante) + fecha + Local/Visitante
 - Click en card abre MatchModal con navegación entre partidos de T113
-- Categorías sin tabla de liga (ej: Más 40) aparecen al final como cards simples
 
 **Tab Tablas:**
-- Tabs por categoría: Mayores | Reserva | Sub-20 | Presenior | Más 40 | Más 48
+- Un tab por tabla de `league_context.json` de la temporada actual, ordenados por categoría (Mayores | Reserva | Presenior | Más 40 | Más 48 | Sub-20 | Sub-18 | Sub-16 | Sub-14)
+- Si una categoría tiene más de una tabla (una por fase), el tab dice la fase: "Sub-18 · 1ª Fase", "Sub-18 · 2ª Rueda"
 - Tabla completa de posiciones con CLT resaltado en dorado
 - Top 8 goleadores de la serie debajo de la tabla
 
 **Tab Próximos (fixtures live):**
-- Carga `fixtures_live.json` (generado por el scraper desde las APIs del Sistema B)
-- Tabs por categoría + tabs punteados para Sub-18/16/14 (pendientes)
+- Carga `fixtures_live.json` (generado por el scraper: base SQLite + APIs del Sistema B)
+- Tabs por categoría; el encabezado muestra la fase actual (`round`: "2ª Rueda", "Copa de Oro"...)
 - Partidos jugados: atenuados, muestran marcador en color (verde/amarillo/rojo según resultado CLT)
 - Partidos próximos: badge PRÓXIMO en el siguiente, cancha si está confirmada (oculta si dice "CANCHA A FIJAR")
+- Separador con el nombre de la fase cuando cambia entre un partido y el siguiente (ej. "2ª RUEDA")
+- El número en el cuadradito es la fecha real de la liga (`round`) si se conoce; si no, el secuencial (`fecha`)
 - `score_home`/`score_away` = siempre local/visitante del partido (no de CLT)
 - El badge PRÓXIMO usa `played: false` directamente (no fecha calendario)
 
@@ -590,6 +609,7 @@ Tiene 3 tabs: **Resultados | Tablas | Próximos**
 | `components/HeroLiveStrip.tsx` | Franja viva en el hero de la home. Resultado reciente priorizado + próximo partido aleatorio con foco en el finde. |
 | `lib/types.ts` | Interfaces TypeScript de todos los datos |
 | `lib/data.ts` | Funciones de carga de JSONs + helpers (rival, formatDate, toProperCase) |
+| `lib/categories.ts` | Clasificación de categorías por patrón (`classifyCategory`, `categoryFromLabel`, `CATEGORY_ORDER`, nombres). Espejo de `classify_category` en `json_generator.py`. |
 
 ---
 
@@ -653,6 +673,8 @@ Vercel redespliega solo con el push a `main` (usa su propia GitHub App, no depen
 | `clt.db` creció mucho | Normal, ~10 KB por partido nuevo | No hacer nada; de 2 MB hoy a ~4 MB en 10 años |
 | Hora del cron corre tarde | Scheduler de GH Actions saturado | Es esperable; se tolera jitter de minutos u horas |
 | Quiero forzar una corrida | — | Actions → "Update data (daily)" → Run workflow → main |
+| Una categoría no muestra próximos partidos (o muestra tentativos transparentes) | La liga arrancó una fase nueva con otra serie y `config.json` todavía no la publica, o `config.json` no respondió | Ver en el log del step "Generate JSONs" la línea `config.json: N series`. Si es 0, la liga estaba caída: se arregla solo en la próxima corrida. Si es >0 pero la categoría sigue sin próximos, la liga aún no cargó la serie nueva en `config.json`: esperar. Los partidos jugados salen igual de la base. |
+| "Últimos resultados" muestra un partido viejo de una categoría | El torneo cambió de nombre a algo que no matchea ningún patrón de `lib/categories.ts` | Agregar el patrón nuevo en `lib/categories.ts` Y en `CATEGORY_PATTERNS` de `json_generator.py` (deben ser iguales) |
 
 ### Paso 2 — Diseño del tab "Liga" en el frontend
 

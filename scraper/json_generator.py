@@ -8,9 +8,11 @@ Genera los archivos en ../frontend/public/data/
 """
 
 import json
+import re
 import sqlite3
 import time
-from datetime import datetime, timezone
+import unicodedata
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -379,7 +381,67 @@ def gen_players_stats(conn, exclude_ids: set[str] | None = None):
 # league_context.json — posiciones, goleadores y valla por temporada/torneo/serie
 # ──────────────────────────────────────────────────────────────────────────────
 
-def gen_league_context(conn):
+# Prefijo del label del Sistema B ("T18/18-3-" → "T18") → id de categoría
+LABEL_PREFIX_TO_CATEGORY = {
+    "T2": "mayores", "T2B": "reserva", "T20": "sub20", "T18": "sub18",
+    "T16": "sub16", "T14": "sub14", "T32": "presenior", "T40": "mas40", "T48": "mas48",
+}
+
+def category_from_label(label: str) -> str | None:
+    return LABEL_PREFIX_TO_CATEGORY.get((label or "").split("/")[0])
+
+def _series_a_stats(conn, season: int, exclude_ids: set[str]) -> dict[str, list[dict]]:
+    """
+    Por categoría, resumen de cada serie del Sistema A en la base:
+    partidos jugados por CLT, rivales enfrentados, último partido y nombre de fase.
+    Sirve para adivinar a qué fase corresponde cada tabla del Sistema B.
+    """
+    rows = conn.execute("""
+        SELECT id, tournament, series, datetime, home_team, away_team, clt_side, result
+        FROM matches WHERE season=?
+    """, (season,)).fetchall()
+    by_cat: dict[str, dict[str, dict]] = {}
+    for r in rows:
+        if r["id"] in exclude_ids:
+            continue
+        cid = classify_category(r["tournament"], r["series"])
+        if not cid:
+            continue
+        s = by_cat.setdefault(cid, {}).setdefault(r["series"], {
+            "series": r["series"], "played": 0, "opponents": set(),
+            "last": "", "stage": stage_from_series(r["series"]),
+        })
+        opp = r["away_team"] if r["clt_side"] == "home" else r["home_team"]
+        if opp:
+            s["opponents"].add(_opponent_key(opp))
+        if r["result"] is not None:
+            s["played"] += 1
+        s["last"] = max(s["last"], r["datetime"] or "")
+    return {cid: list(series.values()) for cid, series in by_cat.items()}
+
+def _stage_for_label(stats: dict[str, list[dict]], cid: str | None, standings: list[dict]) -> str | None:
+    """
+    Fase de una tabla del Sistema B: se compara con las series del Sistema A de
+    la misma categoría (PJ de CLT en la tabla vs partidos jugados en la base, y
+    rivales de la serie presentes en la tabla). Con una sola serie no hay duda.
+    """
+    candidates = stats.get(cid or "", [])
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]["stage"]
+    clt_pj = next((s["pj"] for s in standings if CLT_NAME in (s["institution"] or "").upper()), None)
+    institutions = {_opponent_key(s["institution"]) for s in standings}
+
+    def score(c):
+        overlap = len(c["opponents"] & institutions) / len(c["opponents"]) if c["opponents"] else 0
+        pj_match = 2 if clt_pj is not None and clt_pj == c["played"] else 0
+        return (pj_match + overlap, c["last"])
+
+    return max(candidates, key=score)["stage"]
+
+def gen_league_context(conn, exclude_ids: set[str] | None = None):
+    exclude_ids = exclude_ids or set()
     # Verificar que las tablas existen (pueden no existir en DBs antiguas)
     tables = {r[0] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table'"
@@ -390,6 +452,7 @@ def gen_league_context(conn):
 
     # result[season] = lista de contextos de series donde CLT aparece
     result = {}
+    stats_cache: dict[int, dict] = {}
 
     combos = conn.execute("""
         SELECT DISTINCT season, tournament, series FROM league_standings
@@ -452,8 +515,14 @@ def gen_league_context(conn):
             for r in gk_rows
         ]
 
+        if season_num not in stats_cache:
+            stats_cache[season_num] = _series_a_stats(conn, season_num, exclude_ids)
+        category = category_from_label(serie)
+
         ctx = {
             "label":       serie,  # ej: "T2/AT"
+            "category":    category,  # ej: "sub18" — None si el torneo no es conocido
+            "stage":       _stage_for_label(stats_cache[season_num], category, standings),
             "standings":   standings,
             "clt_rank":    clt_rank,
             "clt_points":  clt_points,
@@ -472,10 +541,82 @@ def gen_league_context(conn):
 # ──────────────────────────────────────────────────────────────────────────────
 
 LIGA_BASE  = "https://ligauniversitaria.org.uy"
+CONFIG_URL = f"{LIGA_BASE}/config/config.json"
 SPORT_API  = "F"
 CLT_NAME   = "CARRASCO LAWN TENNIS"
 
-# Categorías con API del Sistema B — validadas el 14/04/2026 para temporada 113
+# ── Clasificación de categorías ───────────────────────────────────────────────
+# La liga renombra los torneos del Sistema A a mitad de temporada ("Mayores
+# Masculino" → "MAYORES", "Sub - 20" → "SUB 20", "MÁS 40" → "MAS 40"...) y en la
+# segunda fase crea series nuevas ("SUB18 SERIE 3 RUEDA 2", "SUB14 COPA DE ORO").
+# Por eso se clasifica por patrón y no por nombre exacto.
+
+def _norm_text(s: str | None) -> str:
+    s = unicodedata.normalize("NFKD", s or "")
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    return s.upper()
+
+CATEGORY_PATTERNS = [
+    ("sub20",     re.compile(r"SUB\s*-?\s*20")),
+    ("sub18",     re.compile(r"SUB\s*-?\s*18")),
+    ("sub16",     re.compile(r"SUB\s*-?\s*16")),
+    ("sub14",     re.compile(r"SUB\s*-?\s*14")),
+    ("mas48",     re.compile(r"MAS\s*-?\s*48")),
+    ("mas40",     re.compile(r"MAS\s*-?\s*40")),
+    ("presenior", re.compile(r"PRE\s*-?\s*SENIOR|PRESR|\bPRES\b")),
+    ("reserva",   re.compile(r"RESERVA")),
+    ("mayores",   re.compile(r"MAYORES")),
+]
+
+def classify_category(tournament: str | None, series: str | None) -> str | None:
+    """Devuelve el id de categoría (mayores, reserva, sub20...) o None."""
+    for text in (_norm_text(tournament), _norm_text(series)):
+        for cid, pat in CATEGORY_PATTERNS:
+            if pat.search(text):
+                return cid
+    return None
+
+# Nombre legible de la fase a partir del nombre de serie del Sistema A.
+# None = fase regular / primera rueda.
+_STAGE_PRIMARY = [
+    (re.compile(r"COPA\s*(DE\s*)?ORO"),                    "Copa de Oro"),
+    (re.compile(r"COPA\s*(DE\s*)?PLATA"),                  "Copa de Plata"),
+    (re.compile(r"COPA\s*(DE\s*)?BRONCE"),                 "Copa de Bronce"),
+    (re.compile(r"TIT\.?\s*Y\s*ASC|TITULO\s*Y\s*ASC"),     "Título y Ascenso"),
+    (re.compile(r"TITULO|\bTIT\b|\bTIT\."),                "Fase Título"),
+    (re.compile(r"PER\.?\s*Y\s*DESC|PERMANENCIA|DESCENSO"), "Permanencia y Descenso"),
+    (re.compile(r"DESEM"),                                 "Desempate"),
+    (re.compile(r"SEMI"),                                  "Semifinal"),
+    (re.compile(r"4TOS|CUARTOS"),                          "Cuartos de Final"),
+    (re.compile(r"8VOS|OCTAVOS"),                          "Octavos de Final"),
+    (re.compile(r"\bFINAL\b"),                             "Final"),
+]
+_STAGE_RUEDA2 = re.compile(r"RUEDA\s*2|\bR\.?\s*2\b|2DA\.?\s*RUEDA|SEGUNDA\s*RUEDA")
+
+def stage_from_series(series: str | None) -> str | None:
+    text = _norm_text(series)
+    primary = next((name for pat, name in _STAGE_PRIMARY if pat.search(text)), None)
+    rueda2 = bool(_STAGE_RUEDA2.search(text))
+    if primary and rueda2:
+        return f"{primary} · 2ª Rueda"
+    if primary:
+        return primary
+    if rueda2:
+        return "2ª Rueda"
+    return None
+
+def _opponent_key(name: str | None) -> str:
+    """Clave para comparar rivales entre sistemas (ignora puntos, espacios, tildes)."""
+    return re.sub(r"[^A-Z0-9]", "", _norm_text(name))
+
+def _is_bye(name: str | None) -> bool:
+    """'FECHA LIBRE' / 'LIBRE' aparecen como rival cuando CLT no juega esa fecha."""
+    key = _opponent_key(name)
+    return key in ("FECHALIBRE", "LIBRE") or key.startswith("FECHALIBRE")
+
+# Categorías con API del Sistema B — validadas el 14/04/2026 para temporada 113.
+# `serie` es el código de la fase regular; las series de fases posteriores se
+# descubren solas desde config.json (ver _config_series_for).
 FIXTURE_CATEGORIES = [
     {"id": "mayores",   "name": "Mayores",   "division": "Divisional A", "copa": "Copa Pilsen 0,0%",
      "torneo": "2",  "categoria": "1",  "serie": "A"},
@@ -512,113 +653,241 @@ def _api_get(url: str, params: dict) -> list:
                 print(f"  ⚠ Error fetching {url} params={params}: {e}")
     return []
 
-def _fetch_category_fixtures(cat: dict, season: int) -> dict:
+_config_cache: dict[int, list[dict]] = {}
+
+def _config_entries(season: int) -> list[dict]:
     """
-    Descarga resultados (jugados) + próximos partidos de una categoría para CLT.
+    Lee el config.json oficial de la liga: lista todas las combinaciones válidas
+    de torneo/categoria/serie que el sitio de la liga muestra hoy. Es la única
+    forma de enterarse de las series nuevas de cada fase (Rueda 2, Copa de Oro...).
+    Retorna solo las entradas de fútbol de la temporada pedida, o [] si falla.
+    """
+    if season in _config_cache:
+        return _config_cache[season]
+    entries: list[dict] = []
+    for attempt in range(3):
+        try:
+            r = requests.get(CONFIG_URL, timeout=20)
+            r.raise_for_status()
+            data = r.json()
+            if isinstance(data, list):
+                for e in data:
+                    if not isinstance(e, dict):
+                        continue
+                    if str(e.get("Temporada", "")).strip() != str(season):
+                        continue
+                    if str(e.get("Deporte", "")).strip().upper() != SPORT_API:
+                        continue
+                    entries.append({
+                        "torneo":    str(e.get("Torneo", "")).strip(),
+                        "categoria": str(e.get("Categoria", "")).strip(),
+                        "serie":     str(e.get("Serie", "")).strip(),
+                    })
+            break
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(1)
+            else:
+                print(f"  ⚠ No se pudo leer config.json ({e}) — solo series conocidas")
+    _config_cache[season] = entries
+    return entries
+
+def _config_series_for(cat: dict, season: int) -> list[str]:
+    """Códigos de serie a consultar para una categoría: el conocido + los de config.json."""
+    series = [cat["serie"]]
+    for e in _config_entries(season):
+        if e["torneo"] == cat["torneo"] and e["categoria"] == cat["categoria"] \
+                and e["serie"] and e["serie"] not in series:
+            series.append(e["serie"])
+    return series
+
+def _split_datetime(raw: str | None) -> tuple[str, str | None]:
+    """'2026-04-19 11:15:00' → ('2026-04-19', '11:15'); hora 00:00 → None."""
+    raw = (raw or "").strip()
+    date_str = raw.split(" ")[0] if raw else ""
+    time_str = raw.split(" ")[1][:5] if " " in raw else None
+    if time_str == "00:00":
+        time_str = None
+    return date_str, time_str
+
+def _parse_api_match(row: dict, played: bool) -> dict | None:
+    """Convierte una fila de resultados/partidos (Sistema B) a partido de CLT, o None."""
+    loc = (row.get("Locatario") or "").strip().upper()
+    vis = (row.get("Visitante") or "").strip().upper()
+    is_home = loc == CLT_NAME
+    is_away = vis == CLT_NAME
+    if not is_home and not is_away:
+        return None
+    opponent = vis if is_home else loc
+    if _is_bye(opponent):
+        return None
+
+    # Jugados: Fecha_Hora es el datetime y Fecha el número de fecha.
+    # Próximos: Fecha es el datetime.
+    date_str, time_str = _split_datetime(row.get("Fecha_Hora") if played else row.get("Fecha"))
+    m = {
+        "date":     date_str,
+        "opponent": opponent.title(),
+        "home":     is_home,
+        "played":   played,
+    }
+    if played:
+        try:
+            m["score_home"] = int(row.get("GL") or 0)  # GL = goles local (tal cual de la API)
+            m["score_away"] = int(row.get("GV") or 0)  # GV = goles visitante
+        except (TypeError, ValueError):
+            m["score_home"] = m["score_away"] = 0
+        fecha = str(row.get("Fecha") or "").strip()
+        if fecha.isdigit():
+            m["round"] = fecha
+    if time_str:
+        m["time"] = time_str
+    if row.get("Cancha"):
+        m["venue"] = row.get("Cancha")
+    return m
+
+def _db_category_matches(conn, season: int, cat_id: str, exclude_ids: set[str]) -> list[dict]:
+    """
+    Partidos de CLT de la categoría según la base (Sistema A). Es la fuente más
+    completa: el extractor recorre todos los torneos y series de la temporada,
+    incluidas las de la segunda fase. Cada partido trae `stage` (nombre de fase).
+    """
+    rows = conn.execute("""
+        SELECT id, tournament, series, round, datetime, venue,
+               home_team, away_team, score_home, score_away, clt_side, result
+        FROM matches WHERE season=? ORDER BY datetime
+    """, (season,)).fetchall()
+
+    out = []
+    for r in rows:
+        if r["id"] in exclude_ids:
+            continue
+        if classify_category(r["tournament"], r["series"]) != cat_id:
+            continue
+        is_home = r["clt_side"] == "home"
+        opponent = ((r["away_team"] if is_home else r["home_team"]) or "").strip()
+        if not opponent or _is_bye(opponent):
+            continue
+        date_str, time_str = _split_datetime(r["datetime"])
+        if not date_str:
+            continue
+        played = r["result"] is not None and r["score_home"] is not None and r["score_away"] is not None
+        m = {
+            "date":     date_str,
+            "opponent": opponent.title(),
+            "home":     is_home,
+            "played":   played,
+            "match_id": r["id"],
+        }
+        if played:
+            m["score_home"] = r["score_home"]
+            m["score_away"] = r["score_away"]
+        if r["round"]:
+            m["round"] = str(r["round"])
+        if time_str:
+            m["time"] = time_str
+        if r["venue"]:
+            m["venue"] = r["venue"]
+        stage = stage_from_series(r["series"])
+        if stage:
+            m["stage"] = stage
+        out.append(m)
+    return out
+
+def _fetch_category_fixtures(cat: dict, season: int, conn=None,
+                             exclude_ids: set[str] | None = None) -> dict:
+    """
+    Arma el calendario de CLT de una categoría combinando:
+      1. La base SQLite (Sistema A): todos los partidos jugados, de todas las fases.
+      2. Sistema B `resultados` + `partidos` para cada serie de la categoría
+         (la conocida + las que aparezcan en config.json): jugados y PRÓXIMOS.
     Retorna la estructura de categoría lista para el JSON.
     """
-    params_base = {
-        "action":    "cargarPartidos",
-        "temporada": str(season),
-        "deporte":   SPORT_API,
-        "torneo":    cat["torneo"],
-        "categoria": cat["categoria"],
-        "serie":     cat["serie"],
-    }
-
-    results  = _api_get(f"{LIGA_BASE}/resultados/api.php", params_base)
-    upcoming = _api_get(f"{LIGA_BASE}/partidos/api.php",   params_base)
-    time.sleep(0.25)  # rate limiting suave
-
-    matches = []
-
-    # Partidos ya jugados — Fecha es el número de fecha (ej: "1")
-    for r in results:
-        loc = (r.get("Locatario") or "").strip().upper()
-        vis = (r.get("Visitante") or "").strip().upper()
-        is_home = loc == CLT_NAME
-        is_away = vis == CLT_NAME
-        if not is_home and not is_away:
-            continue
-
-        fecha_hora = r.get("Fecha_Hora") or ""
-        date_str = fecha_hora.split(" ")[0] if fecha_hora else ""
-        time_str = fecha_hora.split(" ")[1][:5] if " " in fecha_hora else None
-        if time_str == "00:00":
-            time_str = None
-
-        try:
-            score_home = int(r.get("GL") or 0)
-            score_away = int(r.get("GV") or 0)
-        except (TypeError, ValueError):
-            score_home = score_away = 0
-
-        matches.append({
-            "date":       date_str,
-            "opponent":   (vis if is_home else loc).title(),
-            "home":       is_home,
-            "played":     True,
-            "score_home": score_home,  # GL = goles local (tal cual de la API)
-            "score_away": score_away,  # GV = goles visitante (tal cual de la API)
-            **({"time": time_str} if time_str else {}),
-            **({"venue": r.get("Cancha")} if r.get("Cancha") else {}),
-        })
-
-    # Partidos próximos — Fecha es un datetime ISO (ej: "2026-04-19 11:15:00")
+    exclude_ids = exclude_ids or set()
     today = datetime.now().date()
-    for u in upcoming:
-        loc = (u.get("Locatario") or "").strip().upper()
-        vis = (u.get("Visitante") or "").strip().upper()
-        is_home = loc == CLT_NAME
-        is_away = vis == CLT_NAME
-        if not is_home and not is_away:
+
+    # Clave (fecha, rival) → partido. Se cargan primero los de la base porque
+    # traen la fase; los de la API completan próximos, hora y cancha.
+    merged: dict[tuple, dict] = {}
+
+    db_matches = _db_category_matches(conn, season, cat["id"], exclude_ids) if conn is not None else []
+    for m in db_matches:
+        merged.setdefault((m["date"], _opponent_key(m["opponent"])), m)
+
+    # Fase actual según la base: la del último partido jugado con nombre de fase.
+    played_db = [m for m in db_matches if m["played"]]
+    current_stage = next((m.get("stage") for m in reversed(played_db) if m.get("stage")), None)
+
+    series_codes = _config_series_for(cat, season)
+    extra_found = []
+    for serie in series_codes:
+        params = {
+            "action":    "cargarPartidos",
+            "temporada": str(season),
+            "deporte":   SPORT_API,
+            "torneo":    cat["torneo"],
+            "categoria": cat["categoria"],
+            "serie":     serie,
+        }
+        results  = _api_get(f"{LIGA_BASE}/resultados/api.php", params)
+        upcoming = _api_get(f"{LIGA_BASE}/partidos/api.php",   params)
+        time.sleep(0.25)  # rate limiting suave
+
+        api_matches = [m for m in (_parse_api_match(r, True) for r in results) if m]
+        api_matches += [m for m in (_parse_api_match(u, False) for u in upcoming) if m]
+        if not api_matches:
             continue
+        is_extra = serie != cat["serie"]
+        if is_extra:
+            extra_found.append(serie)
 
-        fecha_raw = u.get("Fecha") or ""
-        date_str  = fecha_raw.split(" ")[0] if fecha_raw else ""
-        time_str  = fecha_raw.split(" ")[1][:5] if " " in fecha_raw else None
-        if time_str == "00:00":
-            time_str = None
-
-        # Filtrar partidos en el pasado (excluir si la fecha ya pasó)
-        try:
-            match_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-            if match_date < today:
+        for m in api_matches:
+            if not m["played"]:
+                # Próximos: descartar los que ya pasaron (quedaron sin resultado)
+                try:
+                    if datetime.strptime(m["date"], "%Y-%m-%d").date() < today:
+                        continue
+                except ValueError:
+                    pass
+                if is_extra:
+                    m["stage"] = current_stage or "2ª Fase"
+            key = (m["date"], _opponent_key(m["opponent"]))
+            existing = merged.get(key)
+            if existing is None:
+                merged[key] = m
                 continue
-        except (ValueError, AttributeError):
-            pass
+            # Ya estaba (desde la base): completar hora/cancha/marcador si faltan
+            for field in ("time", "venue", "round"):
+                if field not in existing and field in m:
+                    existing[field] = m[field]
+            if m["played"] and not existing["played"]:
+                existing.update(played=True, score_home=m["score_home"], score_away=m["score_away"])
 
-        matches.append({
-            "date":     date_str,
-            "opponent": (vis if is_home else loc).title(),
-            "home":     is_home,
-            "played":   False,
-            **({"time": time_str} if time_str else {}),
-            **({"venue": u.get("Cancha")} if u.get("Cancha") else {}),
-        })
+    matches = list(merged.values())
 
-    # Detectar partidos de vuelta faltantes — solo para categorías con ida_vuelta
-    # (juveniles). Si un rival solo aparece con una localía, generar el partido
-    # inverso como tentativo (la liga carga ida primero y luego agrega vuelta).
-    opponents_home = {m["opponent"].upper() for m in matches if m["home"]}
-    opponents_away = {m["opponent"].upper() for m in matches if not m["home"]}
+    # Partidos de vuelta tentativos — solo para categorías ida_vuelta (juveniles)
+    # y SOLO mientras no haya datos reales de una fase posterior. Cuando la liga
+    # carga la segunda fase (Rueda 2, Copa de Oro...) los tentativos se dejan de
+    # generar: antes quedaban como partidos transparentes que nunca se jugaban.
+    has_phase2 = any(m.get("stage") for m in matches) or bool(extra_found)
     missing_return = []
-    if cat.get("ida_vuelta"):
+    if cat.get("ida_vuelta") and not has_phase2 and matches:
+        opponents_home = {_opponent_key(m["opponent"]) for m in matches if m["home"]}
+        opponents_away = {_opponent_key(m["opponent"]) for m in matches if not m["home"]}
         seen = set()
         for m in matches:
-            opp = m["opponent"].upper()
+            opp = _opponent_key(m["opponent"])
             if opp in seen:
                 continue
             seen.add(opp)
             if m["home"] and opp not in opponents_away:
-                missing_return.append({"opponent": m["opponent"], "home": False, "tentative": True})
+                missing_return.append({"opponent": m["opponent"], "home": False})
             elif not m["home"] and opp not in opponents_home:
-                missing_return.append({"opponent": m["opponent"], "home": True, "tentative": True})
+                missing_return.append({"opponent": m["opponent"], "home": True})
 
     if missing_return:
         # Estimar fechas: continuar después del último partido conocido, una semana entre cada uno
         last_date = max(m["date"] for m in matches if m["date"])
-        from datetime import timedelta
         base = datetime.strptime(last_date, "%Y-%m-%d")
         for i, mr in enumerate(missing_return, start=1):
             est_date = base + timedelta(weeks=i)
@@ -630,28 +899,38 @@ def _fetch_category_fixtures(cat: dict, season: int) -> dict:
                 "tentative": True,
             })
 
-    # Ordenar por fecha y asignar número de fecha secuencial
-    matches.sort(key=lambda m: m["date"])
+    # Ordenar por fecha y asignar número secuencial (clave estable para el frontend;
+    # `round` conserva el número de fecha real de la liga cuando se conoce)
+    matches.sort(key=lambda m: (m["date"], m.get("time") or ""))
     for i, m in enumerate(matches, start=1):
         m["fecha"] = i
 
-    has_return = any(m.get("tentative") for m in matches)
+    if has_phase2:
+        stages = [m["stage"] for m in matches if m.get("stage")]
+        round_label = stages[-1] if stages else "2ª Fase"
+    elif any(m.get("tentative") for m in matches):
+        round_label = "Ida y Vuelta"
+    else:
+        round_label = "1ª Rueda"
 
     return {
         "id":       cat["id"],
         "name":     cat["name"],
         "division": cat["division"],
         "copa":     cat["copa"],
-        "round":    "Ida y Vuelta" if has_return else "1ª Rueda",
+        "round":    round_label,
+        "series":   series_codes[:1] + extra_found,
         "matches":  matches,
     }
 
-def gen_fixtures_live(season: int):
-    """Genera fixtures_live.json con el calendario de CLT desde las APIs del Sistema B."""
+def gen_fixtures_live(season: int, conn=None, exclude_ids: set[str] | None = None):
+    """Genera fixtures_live.json con el calendario de CLT (base SQLite + APIs del Sistema B)."""
     print(f"  Bajando fixtures live (temporada {season})...")
+    n_config = len(_config_entries(season))
+    print(f"    config.json: {n_config} series de fútbol para la temporada {season}")
     categories = []
     for cat in FIXTURE_CATEGORIES:
-        cat_data = _fetch_category_fixtures(cat, season)
+        cat_data = _fetch_category_fixtures(cat, season, conn, exclude_ids)
         total = len(cat_data["matches"])
         played = sum(1 for m in cat_data["matches"] if m.get("played"))
         print(f"    {cat['name']}: {total} partidos ({played} jugados, {total - played} próximos)")
@@ -702,12 +981,12 @@ def main():
     gen_match_details(conn, exclude_ids)
     gen_player_index(conn, exclude_ids)
     gen_players_stats(conn, exclude_ids)
-    gen_league_context(conn)
+    gen_league_context(conn, exclude_ids)
     gen_last_updated(conn)
 
     # Fixtures live — siempre la temporada más reciente
     latest = conn.execute("SELECT MAX(season) as s FROM matches").fetchone()["s"]
-    gen_fixtures_live(latest)
+    gen_fixtures_live(latest, conn, exclude_ids)
 
     conn.close()
     print("\nListo.")

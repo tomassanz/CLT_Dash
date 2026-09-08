@@ -28,6 +28,7 @@ BASE_URL        = "https://ligauniversitaria.org.uy/detallefechas/api.php"
 BASE_URL_POS    = "https://ligauniversitaria.org.uy/posiciones/api.php"
 BASE_URL_GOL    = "https://ligauniversitaria.org.uy/goleadores/api.php"
 BASE_URL_VALLA  = "https://ligauniversitaria.org.uy/valla_menos_vencida/api.php"
+CONFIG_URL      = "https://ligauniversitaria.org.uy/config/config.json"
 SPORT     = "FÚTBOL"
 SPORT_API = "F"   # las APIs nuevas usan "F" en vez de "FÚTBOL"
 TEAM      = "CARRASCO LAWN TENNIS"
@@ -638,20 +639,63 @@ def fetch_league_season_data(conn, season: int):
         return True
 
     found_any = False
+    tried: set[tuple[str, str, str]] = set()
 
     # 1) Probar primero los combos conocidos (categorías no-mayores que el brute-force no cubre)
     for torneo_str, categoria_str, serie_code in KNOWN_CATEGORY_COMBOS:
+        tried.add((torneo_str, categoria_str, serie_code))
         if _try_combo(torneo_str, categoria_str, serie_code):
             found_any = True
 
-    # 2) Brute-force para mayores (torneo_id 1-11, categoria=1) — descubre series desconocidas
+    # 2) Series publicadas en config.json — es la única forma de enterarse de las
+    #    series que la liga crea en la segunda fase (Rueda 2, Copa de Oro, Título...)
+    for combo in get_config_combos(season):
+        if combo in tried:
+            continue
+        tried.add(combo)
+        if _try_combo(*combo):
+            found_any = True
+
+    # 3) Brute-force para mayores (torneo_id 1-11, categoria=1) — descubre series desconocidas
     for torneo_id in TORNEO_IDS:
         for serie_code in SERIE_CODES:
-            if _try_combo(str(torneo_id), "1", serie_code):
+            combo = (str(torneo_id), "1", serie_code)
+            if combo in tried:
+                continue
+            tried.add(combo)
+            if _try_combo(*combo):
                 found_any = True
 
     if not found_any:
         log.debug("  [S%d] No se encontraron tablas de liga con CLT", season)
+
+def get_config_combos(season: int) -> list[tuple[str, str, str]]:
+    """
+    Lee config.json (lista oficial de secciones del sitio de la liga) y devuelve
+    las combinaciones (torneo, categoria, serie) de fútbol de la temporada.
+    Si falla la descarga devuelve [] y se sigue solo con los combos conocidos.
+    """
+    data = api_get_url(CONFIG_URL, {})
+    if not isinstance(data, list):
+        log.warning("  [S%d] config.json no disponible — solo series conocidas", season)
+        return []
+    combos: list[tuple[str, str, str]] = []
+    for e in data:
+        if not isinstance(e, dict):
+            continue
+        if str(e.get("Temporada", "")).strip() != str(season):
+            continue
+        if str(e.get("Deporte", "")).strip().upper() != SPORT_API:
+            continue
+        combo = (
+            str(e.get("Torneo", "")).strip(),
+            str(e.get("Categoria", "")).strip(),
+            str(e.get("Serie", "")).strip(),
+        )
+        if all(combo) and combo not in combos:
+            combos.append(combo)
+    log.info("  [S%d] config.json: %d series de fútbol", season, len(combos))
+    return combos
 
 def _int(val):
     try:
