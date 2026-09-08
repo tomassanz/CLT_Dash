@@ -342,7 +342,9 @@ Por cada categoría combina tres fuentes (se deduplican por fecha + rival):
 
 1. **Base SQLite (Sistema A)** — todos los partidos de CLT de la temporada, de todas las fases. El extractor recorre todos los torneos/series, así que los partidos de "RUEDA 2" o "COPA DE ORO" ya están. Cada partido se clasifica en su categoría con `classify_category()` (por patrón, no por nombre exacto) y recibe `stage` con el nombre de la fase (`stage_from_series()`).
 2. **`resultados/api.php`** (jugados) y **`partidos/api.php`** (PRÓXIMOS) del Sistema B, para el código de serie conocido de la categoría.
-3. **Lo mismo para cada serie extra de la categoría que aparezca en `config.json`** (`https://ligauniversitaria.org.uy/config/config.json`, lista oficial de secciones del sitio de la liga, filtrada por temporada + torneo + categoria). Así se descubren las series de la 2ª fase sin tocar código. Si `config.json` no responde, se sigue solo con la serie conocida.
+3. **Lo mismo para cada serie extra de la categoría que ya esté en `league_standings`.** El descubrimiento de series nuevas lo hace el **extractor** (que corre antes en el cron) leyendo `config.json` de la liga; solo guarda una serie si CLT aparece en su tabla, y la deja con el label `T{torneo}/{serie}`. El generador las lee de ahí, así que solo consulta las series donde CLT realmente juega (~13 en total, no las ~180 de `config.json`).
+
+> ⚠️ **Por qué el generador NO lee `config.json` directamente:** se probó y la corrida 788 del cron (08/09/2026) se canceló a los 30 minutos. `config.json` tiene 181 series de fútbol para T113; consultarlas todas desde el generador agregaba ~7 minutos, y sondearlas todas en el extractor otros ~7. Ahora el extractor sondea una sola vez y persiste el resultado.
 
 **Segunda fase — qué pasa y cómo se resuelve:**
 
@@ -351,6 +353,10 @@ Por cada categoría combina tres fuentes (se deduplican por fecha + rival):
 | La liga crea una serie nueva para la 2ª fase (ej. Sub-18 "RUEDA 2") | El Sistema B solo se consultaba con el código de la 1ª fase → no encontraba nada → generaba partidos "tentativos" transparentes que nunca se jugaban | Los jugados salen de la base; los próximos se buscan en la serie nueva publicada en `config.json`. Los tentativos solo se generan si todavía NO hay ninguna fase posterior |
 | La liga renombra el torneo ("Mayores Masculino" → "MAYORES", "MÁS 40" → "MAS 40") | El frontend tenía los nombres fijos → "Últimos resultados" mostraba el último partido del nombre viejo (junio) | Clasificación por patrón en `frontend/lib/categories.ts` (espejo de la de Python) |
 | Tabla de posiciones de la 2ª fase | Solo la tabla de la 1ª fase | `extractor.py` también prueba las series de `config.json`; `league_context.json` trae `category` y `stage` por tabla y el tab Tablas muestra "Sub-18 · 2ª Rueda" cuando hay más de una |
+
+**Series de 2ª fase confirmadas en vivo (corrida del 08/09/2026):** `T18/18-32` (Sub-18 Rueda 2, 8 equipos), `T16/16-32` (Sub-16 Rueda 2, 8 equipos), `T14/14O` (Sub-14 Copa de Oro, 7 equipos).
+
+**Costo de `config.json` en el extractor:** de las 181 series de fútbol de T113 solo se sondean las de los torneos/categorías donde juega CLT. El **brute-force de mayores** (253 combinaciones, ~6 min) pasó a ser **solo un respaldo**: corre únicamente si `config.json` no responde o si no se encontró CLT en ninguna serie. Con `config.json` disponible es redundante, porque lista las mismas series de torneo/categoría `2/1`.
 
 **Categorías en `FIXTURE_CATEGORIES` (json_generator.py):**
 
@@ -674,7 +680,7 @@ Vercel redespliega solo con el push a `main` (usa su propia GitHub App, no depen
 | Vercel no redesplegó | Integration desconectada en Vercel | Revisar Settings → Git en Vercel dashboard |
 | `clt.db` creció mucho | Normal, ~10 KB por partido nuevo | No hacer nada; de 2 MB hoy a ~4 MB en 10 años |
 | Hora del cron corre tarde | Scheduler de GH Actions saturado | Es esperable; se tolera jitter de minutos u horas |
-| El workflow se canceló solo a los ~20/30 min | Se pasó del `timeout-minutes` | Cada corrida tarda ~17 min (cientos de requests a la liga, que responde lento). El límite se subió de 20 a 30 min en sept/2026 porque una corrida se canceló a los 20m18s. Si empiezan a cancelarse de nuevo, revisar si la liga está respondiendo lento antes de subir más el límite |
+| El workflow se canceló solo a los ~20/30 min | Se pasó del `timeout-minutes` | Cada corrida tarda ~17 min (cientos de requests a la liga, que responde lento). El límite se subió de 20 a 30 min en sept/2026 porque una corrida se canceló a los 20m18s. **Antes de agregar consultas nuevas a la API de la liga, medir**: cada sondeo tarda ~1,5s, así que 100 consultas extra son ~2,5 minutos. La corrida 788 se canceló a los 30m por agregar ~127 sondeos en el extractor y ~250 requests en el generador. Si empiezan a cancelarse de nuevo, mirar los tiempos por step en el job antes de subir más el límite |
 | Quiero forzar una corrida | — | Actions → "Update data (daily)" → Run workflow → main |
 | Una categoría no muestra próximos partidos (o muestra tentativos transparentes) | La liga arrancó una fase nueva con otra serie y `config.json` todavía no la publica, o `config.json` no respondió | Ver en el log del step "Generate JSONs" la línea `config.json: N series`. Si es 0, la liga estaba caída: se arregla solo en la próxima corrida. Si es >0 pero la categoría sigue sin próximos, la liga aún no cargó la serie nueva en `config.json`: esperar. Los partidos jugados salen igual de la base. |
 | "Últimos resultados" muestra un partido viejo de una categoría | El torneo cambió de nombre a algo que no matchea ningún patrón de `lib/categories.ts` | Agregar el patrón nuevo en `lib/categories.ts` Y en `CATEGORY_PATTERNS` de `json_generator.py` (deben ser iguales) |

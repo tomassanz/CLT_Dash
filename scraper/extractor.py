@@ -542,7 +542,10 @@ def fetch_league_season_data(conn, season: int):
         ("48", "48", "48R1"),   # Más 48 — validado 27/04/2026
     ]
 
-    # Brute-force para descubrir otras series de mayores (torneo_id numérico 1-11, categoria=1)
+    # Brute-force de mayores — SOLO se usa como respaldo si config.json no responde.
+    # Son 253 combinaciones y cada sondeo tarda ~1,5s contra la API de la liga:
+    # unos 6 minutos. config.json lista las mismas series (y las de la 2ª fase)
+    # de forma exacta, así que cuando está disponible reemplaza a este barrido.
     SERIE_CODES = [
         "AT", "APD", "BT", "BPD", "CT", "CPD", "DT", "DPD",
         "ET", "EPD", "FT", "FPD", "GT", "GPD", "HT", "HPD",
@@ -650,25 +653,37 @@ def fetch_league_season_data(conn, season: int):
     # 2) Series publicadas en config.json — es la única forma de enterarse de las
     #    series que la liga crea en la segunda fase (Rueda 2, Copa de Oro, Título...).
     #    Solo se prueban las de los torneos/categorías donde CLT juega: el resto
-    #    son secciones de otros clubes y solo gastarían requests (el job del cron
-    #    ya tarda ~17 min y una corrida se canceló por timeout).
+    #    son secciones de otros clubes y solo gastarían requests.
     clt_pairs = {(t, c) for t, c, _s in KNOWN_CATEGORY_COMBOS}
-    for combo in get_config_combos(season):
+    config_combos = get_config_combos(season)
+    probed_config = 0
+    for combo in config_combos:
         if combo in tried or (combo[0], combo[1]) not in clt_pairs:
             continue
         tried.add(combo)
+        probed_config += 1
         if _try_combo(*combo):
             found_any = True
+    if config_combos:
+        log.info("  [S%d] config.json: %d series sondeadas (de %d)",
+                 season, probed_config, len(config_combos))
 
-    # 3) Brute-force para mayores (torneo_id 1-11, categoria=1) — descubre series desconocidas
-    for torneo_id in TORNEO_IDS:
-        for serie_code in SERIE_CODES:
-            combo = (str(torneo_id), "1", serie_code)
-            if combo in tried:
-                continue
-            tried.add(combo)
-            if _try_combo(*combo):
-                found_any = True
+    # 3) Brute-force de mayores — SOLO de respaldo: si config.json no respondió, o
+    #    si entre los combos conocidos y los de config.json no apareció CLT en
+    #    ninguna serie (por ejemplo si la liga renumeró los torneos). Con
+    #    config.json OK este barrido es redundante (lista las mismas series de
+    #    torneo/categoría 2/1) y costaría ~6 minutos de más en cada corrida.
+    if not config_combos or not found_any:
+        log.warning("  [S%d] Respaldo: brute-force de mayores (config_combos=%d, encontrado=%s)",
+                    season, len(config_combos), found_any)
+        for torneo_id in TORNEO_IDS:
+            for serie_code in SERIE_CODES:
+                combo = (str(torneo_id), "1", serie_code)
+                if combo in tried:
+                    continue
+                tried.add(combo)
+                if _try_combo(*combo):
+                    found_any = True
 
     if not found_any:
         log.debug("  [S%d] No se encontraron tablas de liga con CLT", season)
