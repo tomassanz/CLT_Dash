@@ -137,6 +137,8 @@ export interface LeagueGoalkeeper {
 
 export interface SeriesLeagueContext {
   label: string            // ej: "T2/AT"
+  category?: string | null // ej: "sub18" — id de categoría (ver lib/categories.ts)
+  stage?: string | null    // ej: "2ª Rueda", "Copa de Oro" — null = fase regular
   standings: LeagueStanding[]
   clt_rank: number | null
   clt_points: number | null
@@ -153,7 +155,7 @@ export type PlayerIndex = Record<string, string[]>
 // ─── Fixtures live ──────────────────────────────────────────────────────────
 
 export interface FixtureMatchLive {
-  fecha: number
+  fecha: number            // número secuencial (clave estable), no la fecha real de la liga
   date: string
   opponent: string
   home: boolean
@@ -163,6 +165,9 @@ export interface FixtureMatchLive {
   time?: string
   venue?: string
   tentative?: boolean
+  round?: string           // número de fecha real de la liga (reinicia en cada fase)
+  stage?: string           // ej: "2ª Rueda", "Copa de Oro" — ausente en la fase regular
+  match_id?: string        // id del partido en matches.json (solo jugados)
 }
 
 export interface FixtureCategoryLive {
@@ -170,7 +175,8 @@ export interface FixtureCategoryLive {
   name: string
   division: string
   copa: string
-  round: string
+  round: string            // fase actual: "1ª Rueda", "2ª Rueda", "Copa de Oro"...
+  series?: string[]        // códigos de serie del Sistema B consultados
   matches: FixtureMatchLive[]
 }
 

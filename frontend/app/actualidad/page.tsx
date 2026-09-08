@@ -6,10 +6,10 @@ import type { Match, MatchDetail, LeagueContext, SeriesLeagueContext, FixturesLi
 import { loadMatches, loadMatchDetail, loadLeagueContext, loadFixturesLive, rival, formatDate, toProperCase } from "@/lib/data"
 import ResultBadge from "@/components/ResultBadge"
 import MatchModal from "@/components/MatchModal"
+import { categoryOrder, categoryName, classifyCategory, categoryFromLabel } from "@/lib/categories"
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const CATEGORY_ORDER = ["mayores", "reserva", "presenior", "mas40", "mas48", "sub20", "sub18", "sub16", "sub14"]
 const PENDING_CATEGORIES: string[] = []
 const CURRENT_SEASON = 113
 
@@ -18,34 +18,33 @@ const LIVE_CATEGORY_IDS = new Set(["mayores", "reserva", "sub20", "sub18", "sub1
 
 type Section = "fixtures" | "tablas" | "resultados"
 
-// Mapeo de tournament (Sistema A) → label (Sistema B) para la temporada actual
-const TOURNAMENT_TO_LABEL: Record<string, string> = {
-  "Mayores Masculino": "T2/A",
-  "RESERVA":           "T2B/RS1",
-  "Sub - 20":          "T20/20A",
-  "SUB 18":            "T18/18-3-",
-  "SUB 16":            "T16/16-3-",
-  "SUB14":             "T14/S14S1",
-  "PRE SENIOR":        "T32/PSB",
-  "MÁS 40":            "T40/M40S2",
-  "MÁS 48":            "T48/48R1",
-}
-
-// Nombre legible y orden de display para cada label de liga
-const LABEL_META: Record<string, { name: string; order: number }> = {
-  "T2/A":       { name: "Mayores",   order: 0 },
-  "T2/AT":      { name: "Mayores",   order: 0 },
-  "T2B/RS1":    { name: "Reserva",   order: 1 },
-  "T20/20A":    { name: "Sub-20",    order: 2 },
-  "T18/18-3-":  { name: "Sub-18",   order: 3 },
-  "T16/16-3-":  { name: "Sub-16",   order: 4 },
-  "T14/S14S1":  { name: "Sub-14",   order: 5 },
-  "T32/PSB":    { name: "Presenior", order: 6 },
-  "T40/M40S2":  { name: "Más 40",   order: 7 },
-  "T48/48R1":   { name: "Más 48",   order: 8 },
-}
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+// Categoría de una tabla de liga: la trae el generador; si no, por prefijo del label.
+function seriesCategory(s: SeriesLeagueContext): string | null {
+  return s.category ?? categoryFromLabel(s.label)
+}
+
+// Nombre del tab de una tabla. Si la categoría tiene varias tablas (una por
+// fase: 1ª Rueda, 2ª Rueda, Copa de Oro...) se agrega la fase para distinguirlas.
+function seriesTabName(s: SeriesLeagueContext, all: SeriesLeagueContext[]): string {
+  const cat = seriesCategory(s)
+  const base = categoryName(cat, s.label)
+  const siblings = all.filter(o => seriesCategory(o) === cat)
+  if (siblings.length <= 1) return base
+  const stage = s.stage ?? "1ª Fase"
+  const sameStage = siblings.filter(o => (o.stage ?? "1ª Fase") === stage).length > 1
+  return sameStage ? `${base} · ${s.label.split("/")[1] ?? s.label}` : `${base} · ${stage}`
+}
+
+// Orden de display: por categoría, y dentro de la categoría primero la fase regular.
+function sortSeries(list: SeriesLeagueContext[]): SeriesLeagueContext[] {
+  return [...list].sort((a, b) =>
+    categoryOrder(seriesCategory(a)) - categoryOrder(seriesCategory(b))
+    || (a.stage ? 1 : 0) - (b.stage ? 1 : 0)
+    || a.label.localeCompare(b.label)
+  )
+}
 
 function formatDateLong(iso: string): string {
   const date = new Date(iso + "T12:00:00")
@@ -80,10 +79,6 @@ function findNextMatchForCategory(cat: FixtureCategoryLive): number | null {
   // fixtures_live.json siempre tiene el campo played definido
   const next = cat.matches.find(m => !m.played)
   return next?.fecha ?? null
-}
-
-function labelName(label: string): string {
-  return LABEL_META[label]?.name ?? label
 }
 
 // ── Section tabs config ──────────────────────────────────────────────────────
@@ -177,21 +172,28 @@ function ResultCard({
 
 // ── Weekend Results ───────────────────────────────────────────────────────────
 
-function lastMatchForLabelStatic(label: string, matches: Match[]): Match | null {
-  const tournament = Object.entries(TOURNAMENT_TO_LABEL).find(([, l]) => l === label)?.[0]
-  if (!tournament) return null
-  return matches.find(m => m.tournament === tournament) ?? null
+// Último partido jugado de cada categoría. Se clasifica por patrón porque la
+// liga renombra los torneos a mitad de temporada ("Mayores Masculino" → "MAYORES").
+// `matches` viene ordenado por fecha descendente.
+function lastMatchesByCategory(matches: Match[]): { category: string; match: Match }[] {
+  const seen = new Map<string, Match>()
+  const now = new Date().toISOString().slice(0, 10)
+  for (const m of matches) {
+    // Los walkovers vienen con fecha ficticia futura (ej. 30/12): no son "último resultado"
+    if (m.datetime && m.datetime.slice(0, 10) > now) continue
+    const cat = classifyCategory(m.tournament, m.series)
+    if (cat && !seen.has(cat)) seen.set(cat, m)
+  }
+  return [...seen.entries()]
+    .map(([category, match]) => ({ category, match }))
+    .sort((a, b) => (b.match.datetime ?? "").localeCompare(a.match.datetime ?? ""))
 }
 
-function WeekendResults({ matches, onMatchClick, leagueSeries }: {
+function WeekendResults({ matches, onMatchClick }: {
   matches: Match[]
   onMatchClick: (m: Match) => void
-  leagueSeries: SeriesLeagueContext[]
 }) {
-  const displayMatches = leagueSeries
-    .map(ctx => ({ ctx, lastMatch: lastMatchForLabelStatic(ctx.label, matches) }))
-    .filter((x): x is { ctx: SeriesLeagueContext; lastMatch: Match } => x.lastMatch !== null)
-    .sort((a, b) => (b.lastMatch.datetime ?? "").localeCompare(a.lastMatch.datetime ?? ""))
+  const displayMatches = lastMatchesByCategory(matches)
 
   return (
     <div className="px-4 py-4 sm:px-5" style={{ backgroundColor: "#FDFAF6" }}>
@@ -205,12 +207,12 @@ function WeekendResults({ matches, onMatchClick, leagueSeries }: {
         </div>
       ) : (
         <div className="space-y-3">
-          {displayMatches.map(({ ctx, lastMatch }) => (
+          {displayMatches.map(({ category, match }) => (
             <ResultCard
-              key={ctx.label}
-              match={lastMatch}
-              categoryLabel={labelName(ctx.label)}
-              onClick={() => onMatchClick(lastMatch)}
+              key={category}
+              match={match}
+              categoryLabel={categoryName(category, category)}
+              onClick={() => onMatchClick(match)}
             />
           ))}
         </div>
@@ -305,7 +307,7 @@ export default function ActualidadPage() {
       .then(data => {
         setFixturesLive(data)
         const first = [...data.categories]
-          .sort((a: FixtureCategoryLive, b: FixtureCategoryLive) => CATEGORY_ORDER.indexOf(a.id) - CATEGORY_ORDER.indexOf(b.id))[0]
+          .sort((a: FixtureCategoryLive, b: FixtureCategoryLive) => categoryOrder(a.id) - categoryOrder(b.id))[0]
         if (first) setActiveCatTab(first.id)
       })
       .catch(() => {})
@@ -323,8 +325,7 @@ export default function ActualidadPage() {
     loadMatches().then(m => setAllMatches(m)).catch(() => {})
     loadLeagueContext().then(lc => {
       setLeagueContext(lc)
-      const season113 = lc[String(CURRENT_SEASON)] ?? []
-      const sorted = [...season113].sort((a, b) => (LABEL_META[a.label]?.order ?? 99) - (LABEL_META[b.label]?.order ?? 99))
+      const sorted = sortSeries(lc[String(CURRENT_SEASON)] ?? [])
       if (sorted.length > 0) setActiveLeagueTab(sorted[0].label)
     }).catch(() => {})
   }, [])
@@ -347,16 +348,8 @@ export default function ActualidadPage() {
       return new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
     })
 
-  // Per-category last match (for Resultados cards)
-  const leagueSeries = [...(leagueContext[String(CURRENT_SEASON)] ?? [])].sort(
-    (a, b) => (LABEL_META[a.label]?.order ?? 99) - (LABEL_META[b.label]?.order ?? 99)
-  )
-
-  function lastMatchForLabel(label: string): Match | null {
-    const tournament = Object.entries(TOURNAMENT_TO_LABEL).find(([, l]) => l === label)?.[0]
-    if (!tournament) return null
-    return season113Matches.find(m => m.tournament === tournament) ?? null
-  }
+  // Tablas de liga de la temporada actual, ordenadas por categoría y fase
+  const leagueSeries = sortSeries(leagueContext[String(CURRENT_SEASON)] ?? [])
 
   async function openMatchModal(m: Match) {
     const detail = await loadMatchDetail(m.id)
@@ -368,7 +361,7 @@ export default function ActualidadPage() {
   const allCategories: FixtureCategoryLive[] = [
     ...(fixturesLive?.categories ?? []),
     ...staticCategories,
-  ].sort((a, b) => CATEGORY_ORDER.indexOf(a.id) - CATEGORY_ORDER.indexOf(b.id))
+  ].sort((a, b) => categoryOrder(a.id) - categoryOrder(b.id))
 
   const loading = fixturesLive === null
   if (loading) {
@@ -521,7 +514,7 @@ const activeLeagueCtx: SeriesLeagueContext | undefined = leagueSeries.find(s => 
                                     color: isNext ? "white" : "#6B2D2D",
                                   }}
                                 >
-                                  {m.fecha}
+                                  {m.round ?? m.fecha}
                                 </div>
                                 <span
                                   className="text-[10px] font-medium flex items-center gap-0.5 px-1.5 py-0.5 rounded"
@@ -584,6 +577,16 @@ const activeLeagueCtx: SeriesLeagueContext | undefined = leagueSeries.find(s => 
                       )
                     }
 
+                    // Lista visible: jugados (si están expandidos o no hay próximos) + próximos.
+                    // Cuando cambia la fase (1ª Rueda → 2ª Rueda / Copa de Oro) se
+                    // intercala un separador con el nombre de la fase.
+                    const visibleMatches = [
+                      ...((pastExpanded || upcomingMatches.length === 0) ? pastMatches : []),
+                      ...upcomingMatches,
+                    ]
+                    const firstUpcoming = upcomingMatches[0]
+                    let prevStage: string | undefined
+
                     return (
                       <div className="space-y-2">
                         {/* Botón para ver/ocultar partidos ya jugados */}
@@ -600,11 +603,24 @@ const activeLeagueCtx: SeriesLeagueContext | undefined = leagueSeries.find(s => 
                           </button>
                         )}
 
-                        {/* Partidos ya jugados (colapsados por defecto) */}
-                        {(pastExpanded || upcomingMatches.length === 0) && pastMatches.map(m => renderMatchCard(m, false))}
-
-                        {/* Partidos próximos */}
-                        {upcomingMatches.map((m, i) => renderMatchCard(m, i === 0))}
+                        {visibleMatches.map(m => {
+                          const showStage = !!m.stage && m.stage !== prevStage
+                          prevStage = m.stage
+                          return (
+                            <Fragment key={`wrap-${m.fecha}`}>
+                              {showStage && (
+                                <div className="flex items-center gap-2 pt-2 pb-0.5">
+                                  <span className="h-px flex-1" style={{ backgroundColor: "#E8DDD0" }} />
+                                  <span className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: "#6B2D2D" }}>
+                                    {m.stage}
+                                  </span>
+                                  <span className="h-px flex-1" style={{ backgroundColor: "#E8DDD0" }} />
+                                </div>
+                              )}
+                              {renderMatchCard(m, m === firstUpcoming)}
+                            </Fragment>
+                          )
+                        })}
                       </div>
                     )
                   })()}
@@ -648,7 +664,7 @@ const activeLeagueCtx: SeriesLeagueContext | undefined = leagueSeries.find(s => 
                       }`}
                       style={activeLeagueTab === s.label ? { backgroundColor: "#6B2D2D" } : {}}
                     >
-                      {labelName(s.label)}
+                      {seriesTabName(s, leagueSeries)}
                     </button>
                   ))}
                 </div>
@@ -702,7 +718,6 @@ const activeLeagueCtx: SeriesLeagueContext | undefined = leagueSeries.find(s => 
           <WeekendResults
             matches={season113Matches}
             onMatchClick={openMatchModal}
-            leagueSeries={leagueSeries}
           />
         )}
       </div>
