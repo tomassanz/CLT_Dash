@@ -20,7 +20,8 @@ import time
 from datetime import date
 from pathlib import Path
 
-from newsletter_common import SEND_DELAY_SECONDS, load_subscribers, send_email, unsubscribe_url
+from newsletter_common import (SEND_DELAY_SECONDS, SEND_OK, SEND_QUOTA,
+                               load_subscribers, send_email, unsubscribe_url)
 
 STATE_FILE = Path(__file__).parent / "welcomed_emails.json"
 SITE_URL = "https://www.cltfutbol.com.uy"
@@ -108,26 +109,37 @@ def main():
 
     sent = 0
     failed = 0
+    deferred = 0
     for i, sub in enumerate(new_subs):
         email = sub["email"].strip()
         nombre = sub.get("nombre", "").strip() or "hincha"
         if i > 0 and not args.dry_run:
             time.sleep(SEND_DELAY_SECONDS)
         html = build_welcome_html(nombre, email)
-        ok = send_email(api_key, email, "¡Bienvenido a CLT Fútbol! ⚽", html, args.dry_run)
-        if ok:
+        status = send_email(api_key, email, "¡Bienvenido a CLT Fútbol! ⚽", html, args.dry_run)
+
+        if status == SEND_QUOTA:
+            # Daily cap spent. Don't mark them as welcomed: nothing was sent and
+            # it isn't their address's fault, so the next hourly run picks them up
+            # once the quota resets.
+            deferred = len(new_subs) - i
+            print(f"  [CUPO] Límite diario alcanzado — quedan {deferred} bienvenidas "
+                  f"para la próxima corrida.", file=sys.stderr)
+            break
+
+        if status == SEND_OK:
             sent += 1
         else:
             failed += 1
             print(f"  WARN: welcome to {email} failed — marked as welcomed anyway "
                   f"(won't retry to avoid loops)", file=sys.stderr)
-        # Mark regardless of outcome so a permanently-failing address doesn't
-        # get retried every hour forever.
+        # Mark regardless of a per-address failure so a permanently-failing
+        # address doesn't get retried every hour forever.
         welcomed.add(email.lower())
 
     if not args.dry_run:
         save_state(welcomed)
-    print(f"\nDone. Welcomed: {sent}, Failed: {failed}")
+    print(f"\nDone. Welcomed: {sent}, Failed: {failed}, Postergadas: {deferred}")
 
 
 if __name__ == "__main__":

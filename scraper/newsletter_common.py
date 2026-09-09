@@ -18,6 +18,11 @@ REPLY_TO = "tomas.sanz00@gmail.com"
 SEND_DELAY_SECONDS = 0.25
 RATE_LIMIT_RETRY_DELAY_SECONDS = 2.0
 
+# send_email() return values.
+SEND_OK = "ok"          # delivered to Resend
+SEND_FAILED = "failed"  # real problem with this address (bad email, etc.)
+SEND_QUOTA = "quota"    # daily cap reached — no point trying more today
+
 # Google Apps Script redirects to script.googleusercontent.com and can be slow
 # on cold starts, so we use a generous timeout and retry with backoff.
 FETCH_TIMEOUT_SECONDS = 45
@@ -63,10 +68,17 @@ def unsubscribe_url(email: str) -> str:
     return f"{SUBSCRIBERS_URL}?action=unsubscribe&email={urllib.parse.quote(email)}"
 
 
-def send_email(api_key: str, to: str, subject: str, html: str, dry_run: bool) -> bool:
+def send_email(api_key: str, to: str, subject: str, html: str, dry_run: bool) -> str:
+    """Send one email. Returns SEND_OK, SEND_FAILED or SEND_QUOTA.
+
+    SEND_QUOTA means the daily cap is spent: the caller should stop sending and
+    queue whoever is left instead of burning through the rest of the list. We
+    detect it without parsing Resend's error text: a 429 that survives one retry
+    can't be the 5/second rate limit (that clears in 2s), so it's the daily cap.
+    """
     if dry_run:
         print(f"[DRY RUN] To: {to} | Subject: {subject}")
-        return True
+        return SEND_OK
 
     import requests as req_lib
     unsubscribe = unsubscribe_url(to)
@@ -88,16 +100,23 @@ def send_email(api_key: str, to: str, subject: str, html: str, dry_run: bool) ->
             r = req_lib.post("https://api.resend.com/emails", headers=headers,
                              json=payload, timeout=15)
             if r.ok:
-                return True
-            if r.status_code == 429 and attempt == 1:
-                time.sleep(RATE_LIMIT_RETRY_DELAY_SECONDS)
-                continue
+                return SEND_OK
+            # 402/403 are plan/quota blocks — retrying today won't help either.
+            if r.status_code in (402, 403):
+                print(f"  QUOTA reached on {to}: {r.status_code} {r.text}", file=sys.stderr)
+                return SEND_QUOTA
+            if r.status_code == 429:
+                if attempt == 1:
+                    time.sleep(RATE_LIMIT_RETRY_DELAY_SECONDS)
+                    continue
+                print(f"  QUOTA reached on {to}: {r.status_code} {r.text}", file=sys.stderr)
+                return SEND_QUOTA
             print(f"  ERROR sending to {to}: {r.status_code} {r.text}", file=sys.stderr)
-            return False
+            return SEND_FAILED
         except Exception as e:
             if attempt == 1:
                 time.sleep(RATE_LIMIT_RETRY_DELAY_SECONDS)
                 continue
             print(f"  ERROR sending to {to}: {e}", file=sys.stderr)
-            return False
-    return False
+            return SEND_FAILED
+    return SEND_FAILED

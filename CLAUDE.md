@@ -67,9 +67,10 @@ Mapeo exhaustivo de TODAS las APIs — **Validado en vivo el 22/03/2026:**
 | **Feature 1.C — Preview OG por partido** | ✅ Live | `generateMetadata` en `app/partido/[id]/page.tsx`. Lee `matches.json` en build time. Genera título y descripción únicos por partido para preview en WhatsApp/redes. |
 | **Feature 1.A — Hero vivo** | ✅ Live | `HeroLiveStrip.tsx` en la home. Bloque superior: mejor resultado reciente (prioriza victorias con más goles, ventana 6-20 días, luego Mayores/Reserva). Bloque inferior: próximo partido aleatorio con foco en el finde. Ambos linkan a Actualidad. |
 | **Newsletter — Pop-up suscripción** | ✅ Live | `NewsletterPopup.tsx`. Aparece a los 5s en primera visita. Botón fijo "Suscribirme" siempre visible. Campos: nombre, apellido, email, rol. Guarda en Google Sheets via Apps Script. |
-| **Newsletter — Emails automáticos** | ✅ Live | `scraper/send_newsletter.py`. Viernes 12:00 UY: partidos de los próximos 7 días (sábado a viernes — antes era solo sáb/dom/lun y se perdían las categorías que juegan entre semana, como Más 48 los martes). Martes 10:00 UY: resultados últimos 7 días. **Si no hay partidos el finde (parate) o no hay resultados en la semana, NO se envía nada** — el script corta antes de consultar suscriptores. Desde `noticias@cltfutbol.com.uy` via Resend. Throttle de 0.25s entre envíos (Resend limita a 5/seg). Si los suscriptores superan los 100, manda a 100 random (cap del free tier). Link de baja automática en cada email. |
-| **Newsletter — Monitor semanal** | ✅ Live | `scraper/monitor_newsletter.py`. Cada viernes 11:00 UY manda resumen de suscriptores (total + breakdown por rol) solo a tomas.sanz00@gmail.com. Incluye alerta amarilla a partir de 75 suscriptores y roja desde 90 (límite Resend free: 100/día). |
-| **Newsletter — Email de bienvenida** | ✅ Live | `scraper/send_welcome.py` + workflow `newsletter_welcome.yml` (cada hora, minuto 40). Detecta suscriptores nuevos comparando el Sheet contra `scraper/welcomed_emails.json` (versionado en git) y les manda bienvenida vía Resend. Primera corrida siembra el archivo con los suscriptores existentes sin mandar emails. Si un envío falla, se marca igual como saludado para no reintentar cada hora. |
+| **Newsletter — Emails automáticos** | ✅ Live | `scraper/send_newsletter.py`. Viernes 12:00 UY: partidos de los próximos 7 días (sábado a viernes — antes era solo sáb/dom/lun y se perdían las categorías que juegan entre semana, como Más 48 los martes). Martes 10:00 UY: resultados últimos 7 días. **Si no hay partidos el finde (parate) o no hay resultados en la semana, NO se envía nada** — el script corta antes de consultar suscriptores. Desde `noticias@cltfutbol.com.uy` via Resend. Throttle de 0.25s entre envíos (Resend limita a 5/seg). **Si la lista no entra en el cupo diario, los que faltan quedan en cola y se envían esa misma noche** (ver "Cola de pendientes" abajo). Link de baja automática en cada email. |
+| **Newsletter — Monitor semanal** | ✅ Live | `scraper/monitor_newsletter.py`. Cada **jueves** 11:00 UY manda resumen de suscriptores (total + breakdown por rol) solo a tomas.sanz00@gmail.com. Corre el jueves (no el viernes) para no gastar un email del cupo el día del envío grande, y para avisar con un día de anticipación. Alerta amarilla al 70% del **cupo mensual** (~241 suscriptores) y roja al 85% (~293). |
+| **Newsletter — Email de bienvenida** | ✅ Live | `scraper/send_welcome.py` + workflow `newsletter_welcome.yml` (cada hora, minuto 40, **todos los días menos martes y viernes**). Detecta suscriptores nuevos comparando el Sheet contra `scraper/welcomed_emails.json` (versionado en git) y les manda bienvenida vía Resend. Primera corrida siembra el archivo con los suscriptores existentes sin mandar emails. Si un envío falla por la dirección, se marca igual como saludado para no reintentar cada hora; **si falla por cupo agotado NO se marca** y lo retoma la corrida siguiente. |
+| **Newsletter — Cola de pendientes** | ✅ Listo | `scraper/newsletter_queue.json` + workflow `newsletter_drain.yml`. Cuando la lista no entra en el cupo diario de Resend, el envío se detiene al tocar el techo y guarda a quién le falta; esa misma noche, pasado el corte de las 21:00 UY, se drena solo. Ver "Cola de pendientes" abajo. |
 
 ### 📬 Troubleshooting del newsletter (julio 2026)
 
@@ -79,29 +80,59 @@ La lista de suscriptores vive en Google Sheets y se descarga vía Google Apps Sc
 |---|---|---|
 | Workflow de newsletter falló con `TimeoutError` en `load_subscribers` | Google Apps Script lento incluso tras 4 intentos | Re-correr manual: Actions → workflow correspondiente → Run workflow |
 | Falló el envío a algunos suscriptores | Red o rate limit de Resend | El script reintenta una vez por email; si igual falla, re-correr con el campo "only" con esos emails |
-| Monitor no llegó el viernes | Idem timeout | Re-correr manual "Newsletter — Monitor de suscriptores"; no manda emails a suscriptores, solo a Tomás |
+| Monitor no llegó el jueves | Idem timeout | Re-correr manual "Newsletter — Monitor de suscriptores"; no manda emails a suscriptores, solo a Tomás |
+| El envío dice "[CUPO] Límite diario alcanzado" | Normal cuando la lista pasa de ~100 | **No hacer nada.** Los pendientes están en `scraper/newsletter_queue.json` y "Newsletter — Enviar pendientes" los manda esa noche después de las 21:00 UY |
+| Falló "Newsletter — Enviar pendientes" con "la tanda quedó Xh sin enviar" | La cola no se pudo drenar en 20h: el cupo no alcanzó ni con dos días | Ese envío se perdió para los que quedaban. Señal clara de que hay que migrar de plan/proveedor (ver "Cuándo migrar") |
+| Hay un `newsletter_queue.json` viejo en el repo | El drenado quedó a medias | Si tiene más de un día, borrarlo: `git rm scraper/newsletter_queue.json`. El próximo envío lo reemplaza igual |
+| A alguien no le llegó el newsletter y a otros sí | Puede ser normal: si hubo 2 tandas, la segunda llega de noche | Mirar el log del envío y el de "Enviar pendientes". Si figura en `pending` y la cola sigue ahí, todavía no le tocó |
 
-### 📧 Límites de Resend y plan de migración
+### 📧 Límites de Resend y cola de pendientes
 
-**Plan actual:** Resend free
-- **100 emails/día**
-- **3,000 emails/mes**
-- Suficiente para ~12 suscriptores con 2 envíos semanales (mejor caso: ~96/mes), o ~25 suscriptores si hubiera menos partidos.
+**Plan actual:** Resend free — **100 emails/día** y **3.000 emails/mes**.
 
-**Cuándo migrar:**
-- A los **75 suscriptores** → empezar a planificar (monitor te avisa con alerta amarilla)
-- A los **90 suscriptores** → migrar urgente (monitor te avisa con alerta roja)
+El día de Resend es un **día calendario UTC**, o sea que **el contador se reinicia a las 21:00 hora de Uruguay** (UTC-3, sin horario de verano). Esto es lo que hace posible la cola de pendientes.
 
-**Alternativas cuando lleguemos al límite:**
+⚠️ **Un mail con varios destinatarios NO ahorra cupo:** cada dirección en `to`, `cc` o `bcc` cuenta como un email aparte. Mandar uno solo con 80 en copia oculta gasta 80, igual que 80 mails separados. No sirve como truco, y encima perdería la personalización y el link de baja individual.
+
+#### Cola de pendientes — cómo funciona
+
+Antes, si la lista pasaba de 100, `send_newsletter.py` mandaba a **100 elegidos al azar** y el resto no recibía nada, sin ningún aviso. Ahora:
+
+1. El envío arranca normal y le manda a todos, uno por uno.
+2. Cuando Resend contesta que se agotó el cupo, **se detiene ahí** y guarda en `scraper/newsletter_queue.json` a quién le falta, junto con el asunto y los partidos/resultados de ese envío.
+3. `newsletter_drain.yml` corre `--resume` cada hora entre las **22:30 y las 04:30 UY** de los días de envío (martes y viernes de noche, ya pasado el corte de las 21:00). El primer intento con cupo nuevo drena lo que quedó y borra la cola.
+4. Cada corrida sin pendientes no hace nada (ni consulta el Sheet), así que reintentar es gratis.
+
+**Detalles que importan:**
+
+- **Los partidos/resultados se guardan en la cola a propósito.** El reintento corre horas más tarde y `fixtures_live.json` puede haber cambiado (un partido ya se jugó). Todos tienen que recibir el mismo email, no uno recalculado.
+- **Nadie recibe doble y nadie queda afuera:** la cola es la lista de quienes *no* recibieron. No hay sorteo ni suposiciones sobre el horario.
+- **Detección del cupo sin leer textos de error:** un 429 que sobrevive un reintento de 2s no puede ser el límite de 5/segundo (ese se despeja en 2s), así que se trata como cupo diario. Un 402/403 también. Ver `send_email()` en `newsletter_common.py`, que devuelve `SEND_OK` / `SEND_FAILED` / `SEND_QUOTA`.
+- **La cola vence a las 20 horas** (`QUEUE_MAX_AGE_HOURS`): no tiene sentido mandar "los partidos de este finde" cuando el finde ya pasó. Si vence con gente adentro, el workflow **falla a propósito** (hay un intento extra a las 09:30 UY justo para eso) y llega el aviso de GitHub.
+- **El cupo diario se reserva para el newsletter:** las bienvenidas no corren martes ni viernes, y el monitor pasó al jueves.
+- **El estado se versiona en git**, igual que `welcomed_emails.json`: los workflows commitean la cola al crearla, al reducirla y al borrarla. Si el borrado no se commiteara, el próximo `--resume` reenviaría a gente que ya recibió.
+
+#### Cuándo migrar
+
+Con la cola, el límite diario ya no corta el envío — solo hace que tarde una noche más. **La pared real pasó a ser el cupo mensual:**
+
+| Suscriptores | Emails/mes | % del cupo | Tandas por envío | |
+|---|---|---|---|---|
+| 85 (hoy) | ~740 | 25% | 1 | |
+| 150 | ~1.300 | 44% | 2 | |
+| 241 | ~2.100 | 70% | 3 | ← alerta amarilla del monitor |
+| 293 | ~2.550 | 85% | 3 | ← alerta roja del monitor |
+| ~345 | ~3.000 | 100% | 4 | ← techo absoluto |
+
+**Alternativas cuando lleguemos al techo:**
 
 | Opción | Costo | Pros | Cons |
 |---|---|---|---|
-| **Resend Pro** | $20/mes | Mismo código, sube a 50,000 mails/mes | Pago mensual |
-| **Brevo (ex Sendinblue)** | Gratis hasta 9,000/mes | Free generoso | Cambiar código del sender |
-| **AWS SES** | ~$0.10 por 1,000 mails | Muy barato a escala | Setup complejo, requiere verificación AWS |
-| **Mailchimp Free** | Gratis hasta 500 contactos | UI para diseñar emails | Límite de contactos, no emails enviados |
+| **Brevo (ex Sendinblue)** | Gratis hasta 9.000/mes (300/día) | Free tier muy generoso; el cambio es una sola función (`send_email`) | Verificar el dominio de nuevo en NIC Uruguay (hasta 24h de propagación) + reputación nueva de envío |
+| **Resend Pro** | $20/mes | Mismo código, sube a 50.000 mails/mes, sin límite diario | Pago mensual |
+| **AWS SES** | ~$0.10 por 1.000 mails | Muy barato a escala | Setup complejo, requiere verificación AWS |
 
-**Recomendación si llegamos al límite:** Brevo (mismo modelo de "API key + transactional emails", free tier mucho más grande) o pagar los $20 de Resend si el sitio ya tiene tracción comercial.
+**Recomendación:** Brevo cuando el monitor avise en amarillo. Ojo que migrar **no** elimina la cola: sirve igual como red de seguridad contra cualquier límite del proveedor nuevo.
 
 ### ⏳ Pendiente
 
@@ -480,6 +511,22 @@ cd scraper/
 ```
 
 Solo procesa la última temporada con datos. Ideal para el cron automático.
+
+### Newsletter (manual, para probar)
+
+```bash
+cd scraper/
+# Ver qué saldría, sin mandar nada:
+RESEND_API_KEY=x SUBSCRIBERS_API_KEY=<key> .venv/bin/python send_newsletter.py --fixtures --dry-run
+
+# Mandar solo a Tomás:
+RESEND_API_KEY=<key> SUBSCRIBERS_API_KEY=<key> .venv/bin/python send_newsletter.py --fixtures --test
+
+# Drenar pendientes de una tanda anterior (lo hace solo el workflow, esto es por si acaso):
+RESEND_API_KEY=<key> .venv/bin/python send_newsletter.py --resume
+```
+
+`--resume` no necesita `SUBSCRIBERS_API_KEY`: los destinatarios pendientes ya están en la cola.
 
 ### Generar JSONs (después de cualquier extracción)
 

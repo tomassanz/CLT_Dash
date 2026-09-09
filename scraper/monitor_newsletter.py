@@ -12,7 +12,18 @@ from newsletter_common import FROM_EMAIL, load_subscribers
 TO_EMAIL = "tomas.sanz00@gmail.com"
 
 
+# Con la cola de pendientes (newsletter_queue.json) el techo diario de Resend ya
+# no corta el envío: si la lista no entra en un día, se drena al día siguiente.
+# La pared real pasó a ser el cupo MENSUAL.
 RESEND_DAILY_LIMIT = 100
+RESEND_MONTHLY_LIMIT = 3000
+
+# Dos envíos por semana ≈ 8.7 envíos por mes a cada suscriptor.
+SENDS_PER_SUBSCRIBER_PER_MONTH = 8.7
+
+# Avisos sobre el cupo mensual: amarillo al 70%, rojo al 85%.
+WARN_MONTHLY_PCT = 70
+ALERT_MONTHLY_PCT = 85
 
 def build_html(subscribers: list[dict]) -> str:
     total = len(subscribers)
@@ -34,27 +45,46 @@ def build_html(subscribers: list[dict]) -> str:
           <td style="padding:6px 12px;text-align:right;color:#888;">{pct}%</td>
         </tr>"""
 
-    # Alerta de capacidad
-    capacity_pct = round(total / RESEND_DAILY_LIMIT * 100)
-    if total >= 90:
+    # Cuántas tandas necesita un envío (el cupo diario ya no corta el envío: la
+    # cola de pendientes lo drena al día siguiente, solo tarda más en llegar).
+    tandas = max(1, -(-total // RESEND_DAILY_LIMIT))
+
+    # La pared real: el cupo mensual.
+    monthly_used = round(total * SENDS_PER_SUBSCRIBER_PER_MONTH)
+    capacity_pct = round(monthly_used / RESEND_MONTHLY_LIMIT * 100)
+    max_subs = int(RESEND_MONTHLY_LIMIT / SENDS_PER_SUBSCRIBER_PER_MONTH)
+
+    if capacity_pct >= ALERT_MONTHLY_PCT:
         alert_html = f"""
     <div style="background:#fee;border-left:4px solid #dc2626;padding:14px 18px;border-radius:8px;margin-bottom:20px;">
-      <p style="margin:0;color:#dc2626;font-weight:bold;font-size:14px;">⚠️ Atención: cerca del límite</p>
+      <p style="margin:0;color:#dc2626;font-weight:bold;font-size:14px;">⚠️ Atención: cerca del límite mensual</p>
       <p style="margin:6px 0 0;color:#3A1A1A;font-size:13px;">
-        Estás usando {capacity_pct}% del límite diario de Resend ({total}/{RESEND_DAILY_LIMIT}).
-        Tiempo de buscar alternativa o pasar a plan pago ($20/mes por 50k mails).
+        Con {total} suscriptores son unos {monthly_used} emails por mes: {capacity_pct}% del
+        cupo de Resend ({RESEND_MONTHLY_LIMIT}/mes). El techo está en ~{max_subs} suscriptores.
+        Hora de migrar a Brevo (gratis, 9.000/mes) o pasar a Resend Pro ($20/mes).
       </p>
     </div>"""
-    elif total >= 75:
+    elif capacity_pct >= WARN_MONTHLY_PCT:
         alert_html = f"""
     <div style="background:#fef3c7;border-left:4px solid #ca8a04;padding:14px 18px;border-radius:8px;margin-bottom:20px;">
       <p style="margin:0;color:#ca8a04;font-weight:bold;font-size:14px;">📈 Crecimiento alto</p>
       <p style="margin:6px 0 0;color:#3A1A1A;font-size:13px;">
-        {capacity_pct}% del límite diario usado ({total}/{RESEND_DAILY_LIMIT}). Empezar a pensar en alternativas.
+        {capacity_pct}% del cupo mensual usado (~{monthly_used} de {RESEND_MONTHLY_LIMIT}).
+        El techo está en ~{max_subs} suscriptores: conviene ir planificando la migración.
       </p>
     </div>"""
     else:
         alert_html = ""
+
+    tandas_html = ""
+    if tandas > 1:
+        tandas_html = f"""
+    <div style="background:#eef6ff;border-left:4px solid #2563eb;padding:12px 18px;border-radius:8px;margin-bottom:20px;">
+      <p style="margin:0;color:#3A1A1A;font-size:13px;">
+        ℹ️ El envío ya no entra en un día: sale en <b>{tandas} tandas</b>. Los que quedan
+        pendientes reciben el mail esa misma noche, después de las 21:00. Es automático.
+      </p>
+    </div>"""
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
@@ -67,11 +97,11 @@ def build_html(subscribers: list[dict]) -> str:
   <div style="height:3px;background:#D4A843;"></div>
   <div style="padding:28px 32px;">
     <p style="color:#888;font-size:12px;margin:0 0 16px;">{date_str}</p>
-    {alert_html}
+    {alert_html}{tandas_html}
     <div style="background:white;border-radius:12px;padding:24px;text-align:center;margin-bottom:20px;">
       <div style="font-size:48px;font-weight:bold;color:#6B2D2D;">{total}</div>
       <div style="font-size:14px;color:#888;margin-top:4px;">suscriptores activos</div>
-      <div style="font-size:11px;color:#aaa;margin-top:8px;">{capacity_pct}% del límite diario ({total}/{RESEND_DAILY_LIMIT})</div>
+      <div style="font-size:11px;color:#aaa;margin-top:8px;">~{monthly_used} emails/mes · {capacity_pct}% del cupo de Resend ({RESEND_MONTHLY_LIMIT}/mes)</div>
     </div>
     <p style="color:#6B2D2D;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 8px;">Por rol</p>
     <table style="width:100%;background:white;border-radius:10px;border-collapse:collapse;overflow:hidden;">

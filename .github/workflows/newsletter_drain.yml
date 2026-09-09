@@ -1,29 +1,38 @@
-name: Newsletter — Partidos del finde
+name: Newsletter — Enviar pendientes
+
+# El plan gratuito de Resend corta a los 100 emails por día (día calendario UTC,
+# o sea 21:00 en Uruguay). Si la lista de suscriptores no entra en un solo día,
+# send_newsletter.py deja los que faltan en scraper/newsletter_queue.json y este
+# workflow los manda cuando el cupo se renueva.
+#
+# Corre después de las 21:00 UY de los días de envío (martes y viernes). Cada
+# corrida no hace nada si no hay pendientes, así que reintentar es gratis.
 
 on:
   schedule:
-    # Viernes 12:00 Uruguay (15:00 UTC)
-    - cron: "0 15 * * 5"
+    # 01:30 a 07:30 UTC = 22:30 a 04:30 hora de Uruguay, del miércoles y del
+    # sábado (o sea la noche del martes y la del viernes, ya pasado el corte).
+    # Se reintenta cada hora para aguantar el jitter del scheduler de Actions.
+    - cron: "30 1-7 * * 3,6"
+    # Un intento más tarde: si a esta altura sigue habiendo pendientes, la cola
+    # ya venció y el script falla a propósito para que llegue el aviso por mail.
+    - cron: "30 12 * * 3,6"
   workflow_dispatch:
     inputs:
       dry_run:
         description: "Dry run (no envía emails reales)"
         type: boolean
         default: false
-      only:
-        description: "Solo enviar a estos emails (separados por coma). Dejar vacío para enviar a todos."
-        type: string
-        default: ""
 
 permissions:
   contents: write
 
 concurrency:
-  group: newsletter-fixtures
+  group: newsletter-drain
   cancel-in-progress: false
 
 jobs:
-  send:
+  drain:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -39,16 +48,13 @@ jobs:
         working-directory: scraper
         run: pip install -r requirements.txt
 
-      - name: Send fixtures newsletter
+      - name: Send pending newsletter emails
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          SUBSCRIBERS_API_KEY: ${{ secrets.SUBSCRIBERS_API_KEY }}
-          ONLY_EMAILS: ${{ github.event.inputs.only }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
-          ARGS="--fixtures"
+          ARGS="--resume"
           if [ "$DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
-          if [ -n "$ONLY_EMAILS" ]; then ARGS="$ARGS --only=$ONLY_EMAILS"; fi
           python scraper/send_newsletter.py $ARGS
 
       - name: Commit queue state if changed
@@ -59,7 +65,7 @@ jobs:
           # si no hay nada que agregar, tampoco hay nada que commitear.
           git add -A -- scraper/newsletter_queue.json 2>/dev/null || true
           if git diff --cached --quiet; then
-            echo "Sin pendientes — nada que commitear."
+            echo "Sin cambios en la cola — nada que commitear."
             exit 0
           fi
           git config user.name  "github-actions[bot]"

@@ -2,8 +2,10 @@ name: Newsletter — Monitor de suscriptores
 
 on:
   schedule:
-    # Todos los viernes 11:00 Uruguay (14:00 UTC) — 1 hora antes del envío de fixtures
-    - cron: "0 14 * * 5"
+    # Todos los jueves 11:00 Uruguay (14:00 UTC) — un día antes del envío de fixtures.
+    # Antes corría el viernes, pero se comía un email del cupo justo el día del envío
+    # grande. Corriendo el jueves además avisa con un día de anticipación.
+    - cron: "0 14 * * 4"
   workflow_dispatch:
 
 jobs:

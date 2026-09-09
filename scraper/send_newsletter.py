@@ -4,17 +4,19 @@ Newsletter sender for CLT Fútbol.
 Modes:
   --fixtures   Send upcoming weekend matches (run on Fridays)
   --results    Send recent match results (run on Tuesdays)
+  --resume     Send whatever was left pending by an earlier batch
   --dry-run    Print emails to stdout without sending
 """
 
 import argparse
 import json
 import sys
-from datetime import date, timedelta
+import time
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from newsletter_common import (SEND_DELAY_SECONDS, load_subscribers, send_email,
-                               unsubscribe_url)
+from newsletter_common import (SEND_DELAY_SECONDS, SEND_OK, SEND_QUOTA,
+                               load_subscribers, send_email, unsubscribe_url)
 
 DATA_DIR = Path(__file__).parent.parent / "frontend" / "public" / "data"
 
@@ -252,11 +254,152 @@ def build_results_html(nombre: str, email: str, results: list[dict]) -> str:
 </div></body></html>"""
 
 
-# ── Resend limits ─────────────────────────────────────────────────────────────
+# ── Cola de pendientes ────────────────────────────────────────────────────────
 
-# Resend free tier daily cap. If subscribers exceed this, we sample at random
-# to avoid hitting the limit (until we migrate to a paid plan).
-MAX_DAILY_SENDS = 100
+# El plan gratuito de Resend corta a los 100 emails por día (día calendario UTC,
+# o sea 21:00 hora de Uruguay). Cuando la lista no entra en un solo día, el envío
+# se detiene al tocar el techo y guarda acá a quién le falta. El workflow
+# "newsletter_drain.yml" reintenta más tarde con --resume y drena lo que quedó
+# en cuanto el cupo se renueva.
+#
+# Antes de esto, si la lista pasaba de 100 el script mandaba a 100 elegidos al
+# azar y el resto no recibía nada, sin aviso. Ahora nadie queda afuera y nadie
+# recibe el mail dos veces.
+QUEUE_FILE = Path(__file__).parent / "newsletter_queue.json"
+
+# Si la cola no se pudo drenar en este plazo se descarta: no tiene sentido mandar
+# "los partidos de este finde" cuando el finde ya pasó. 20h alcanza para que los
+# reintentos de newsletter_drain.yml (22:30 a 04:30 UY) entren cómodos, y deja un
+# intento posterior que encuentra la cola vencida y hace fallar el workflow para
+# que llegue el aviso.
+QUEUE_MAX_AGE_HOURS = 20
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def save_queue(kind: str, subject: str, items: list[dict], pending: list[dict],
+               created_at: str | None = None) -> None:
+    """Persist who still needs this newsletter, plus what to send them.
+
+    The matches/results are stored alongside the addresses on purpose: the retry
+    runs hours later, and by then fixtures_live.json may have changed (a match
+    got played). Everyone must receive the same email, not a recalculated one.
+    """
+    QUEUE_FILE.write_text(
+        json.dumps({
+            "kind": kind,
+            "subject": subject,
+            "created_at": created_at or _now_utc().isoformat(timespec="seconds"),
+            "items": items,
+            "pending": [
+                {"email": (p.get("email") or "").strip(),
+                 "nombre": (p.get("nombre") or "").strip()}
+                for p in pending
+            ],
+        }, ensure_ascii=False, indent=1) + "\n",
+        encoding="utf-8",
+    )
+
+
+def load_queue() -> dict | None:
+    if not QUEUE_FILE.exists():
+        return None
+    try:
+        q = json.loads(QUEUE_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"WARN: cola ilegible ({e}) — se descarta.", file=sys.stderr)
+        clear_queue()
+        return None
+    return q if q.get("pending") else None
+
+
+def clear_queue() -> None:
+    QUEUE_FILE.unlink(missing_ok=True)
+
+
+def queue_age_hours(q: dict) -> float:
+    try:
+        created = datetime.fromisoformat(q["created_at"])
+    except (KeyError, TypeError, ValueError):
+        return float("inf")  # sin fecha válida = tratarla como vencida
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    return (_now_utc() - created).total_seconds() / 3600
+
+
+def send_batch(api_key: str, kind: str, subject: str, items: list[dict],
+               recipients: list[dict], dry_run: bool) -> tuple[int, int, list[dict]]:
+    """Send one newsletter to each recipient, stopping at the daily cap.
+
+    Returns (sent, failed, pending): `pending` are the recipients never reached
+    because the quota ran out — the caller queues them for the retry run.
+    """
+    sent = failed = 0
+    for i, person in enumerate(recipients):
+        email = (person.get("email") or "").strip()
+        if not email:
+            continue
+        nombre = (person.get("nombre") or "").strip() or "hincha"
+
+        if kind == "fixtures":
+            html = build_fixtures_html(nombre, email, items)
+        else:
+            html = build_results_html(nombre, email, items)
+
+        if i > 0 and not dry_run:
+            time.sleep(SEND_DELAY_SECONDS)
+
+        status = send_email(api_key, email, subject, html, dry_run)
+
+        if status == SEND_QUOTA:
+            pending = recipients[i:]
+            print(f"\n  [CUPO] Límite diario de Resend alcanzado tras {sent} envíos. "
+                  f"Quedan {len(pending)} para la próxima tanda.", file=sys.stderr)
+            return sent, failed, pending
+
+        if status == SEND_OK:
+            sent += 1
+        else:
+            failed += 1
+
+    return sent, failed, []
+
+
+def run_resume(api_key: str, dry_run: bool) -> None:
+    """Drain whatever an earlier batch left pending, if the quota allows now."""
+    q = load_queue()
+    if not q:
+        print("No hay envíos pendientes. Nada que hacer.")
+        return
+
+    pending = q["pending"]
+    age = queue_age_hours(q)
+    if age > QUEUE_MAX_AGE_HOURS:
+        clear_queue()
+        sys.exit(f"ERROR: la tanda '{q.get('kind')}' quedó {age:.0f}h sin enviar y ya "
+                 f"no es actual. Se descartó sin llegar a {len(pending)} suscriptores. "
+                 f"Revisá el cupo diario de Resend — probablemente haya que migrar de plan.")
+
+    print(f"Retomando tanda '{q.get('kind')}' de hace {age:.1f}h — {len(pending)} pendientes")
+    sent, failed, still = send_batch(api_key, q["kind"], q["subject"], q["items"],
+                                    pending, dry_run)
+
+    if dry_run:
+        print(f"\n[DRY RUN] Enviados: {sent}, Fallidos: {failed}, Pendientes: {len(still)}")
+        return
+
+    if still:
+        save_queue(q["kind"], q["subject"], q["items"], still, created_at=q.get("created_at"))
+        print(f"\nEnviados: {sent}, Fallidos: {failed}. Quedan {len(still)} para el "
+              f"próximo intento.")
+    else:
+        clear_queue()
+        print(f"\nEnviados: {sent}, Fallidos: {failed}. Tanda completa, cola vacía.")
+
+    if failed > 0:
+        sys.exit(1)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -268,15 +411,25 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Print without sending")
     parser.add_argument("--test", action="store_true", help="Send only to tomas.sanz00@gmail.com")
     parser.add_argument("--only", default="", help="Comma-separated emails to limit sending to (case-insensitive)")
+    parser.add_argument("--resume", action="store_true",
+                        help="Enviar los pendientes que dejó una tanda anterior por falta de cupo")
     args = parser.parse_args()
 
-    if not args.fixtures and not args.results:
+    if args.resume:
+        if args.fixtures or args.results:
+            parser.error("--resume no se combina con --fixtures/--results: "
+                         "la cola ya sabe qué mandar")
+    elif not args.fixtures and not args.results:
         parser.error("Specify --fixtures or --results")
 
     import os
     api_key = os.environ.get("RESEND_API_KEY", "")
     if not api_key and not args.dry_run:
         sys.exit("ERROR: RESEND_API_KEY not set")
+
+    if args.resume:
+        run_resume(api_key, args.dry_run)
+        return
 
     # Primero mirar si hay algo para contar; si no lo hay, no se envía nada
     # (y ni siquiera se consulta la lista de suscriptores).
@@ -314,37 +467,35 @@ def main():
         print(f"  [ONLY] {len(subscribers)} of {len(only_set)} requested emails matched in subscribers")
     else:
         print(f"  {len(subscribers)} subscribers found")
-        if len(subscribers) > MAX_DAILY_SENDS:
-            import random
-            skipped = len(subscribers) - MAX_DAILY_SENDS
-            subscribers = random.sample(subscribers, MAX_DAILY_SENDS)
-            print(f"  [CAP] Over Resend daily limit — sending to {MAX_DAILY_SENDS} random "
-                  f"subscribers, {skipped} will not get this email", file=sys.stderr)
 
-    import time
-    sent = 0
-    failed = 0
-    for i, sub in enumerate(subscribers):
-        email = sub.get("email", "").strip()
-        nombre = sub.get("nombre", "").strip() or "hincha"
-        if not email:
-            continue
+    # Modos manuales de depuración: no tocan la cola.
+    manual = args.test or bool(args.only)
 
-        if args.fixtures:
-            html = build_fixtures_html(nombre, email, matches)
-        else:
-            html = build_results_html(nombre, email, results)
+    stale = load_queue()
+    if stale and not manual:
+        print(f"WARN: había una tanda '{stale.get('kind')}' con {len(stale['pending'])} "
+              f"pendientes de hace {queue_age_hours(stale):.0f}h; se reemplaza por esta.",
+              file=sys.stderr)
 
-        if i > 0 and not args.dry_run:
-            time.sleep(SEND_DELAY_SECONDS)
+    kind = "fixtures" if args.fixtures else "results"
+    items = matches if args.fixtures else results
 
-        ok = send_email(api_key, email, subject, html, args.dry_run)
-        if ok:
-            sent += 1
-        else:
-            failed += 1
+    sent, failed, pending = send_batch(api_key, kind, subject, items, subscribers,
+                                       args.dry_run)
 
     print(f"\nDone. Sent: {sent}, Failed: {failed}")
+
+    if pending:
+        if args.dry_run or manual:
+            print(f"ATENCIÓN: {len(pending)} sin enviar por cupo. No se encolan en modo "
+                  f"test/only/dry-run.", file=sys.stderr)
+        else:
+            save_queue(kind, subject, items, pending)
+            print(f"Quedaron {len(pending)} pendientes por el cupo diario: guardados en "
+                  f"{QUEUE_FILE.name}, se envían solos cuando el cupo se renueve.")
+    elif not manual and not args.dry_run:
+        clear_queue()
+
     if failed > 0:
         sys.exit(1)
 

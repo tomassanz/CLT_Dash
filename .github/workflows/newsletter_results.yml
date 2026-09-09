@@ -15,6 +15,13 @@ on:
         type: string
         default: ""
 
+permissions:
+  contents: write
+
+concurrency:
+  group: newsletter-results
+  cancel-in-progress: false
+
 jobs:
   send:
     runs-on: ubuntu-latest
@@ -43,3 +50,20 @@ jobs:
           if [ "$DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           if [ -n "$ONLY_EMAILS" ]; then ARGS="$ARGS --only=$ONLY_EMAILS"; fi
           python scraper/send_newsletter.py $ARGS
+
+      - name: Commit queue state if changed
+        if: always()
+        run: |
+          # El archivo puede no existir, que es el caso normal (no hubo pendientes).
+          # git add falla con un pathspec inexistente, así que toleramos ese error:
+          # si no hay nada que agregar, tampoco hay nada que commitear.
+          git add -A -- scraper/newsletter_queue.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "Sin pendientes — nada que commitear."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(newsletter): pendientes de envío $(date -u +'%Y-%m-%d %H:%M')"
+          git pull --rebase origin main
+          git push
