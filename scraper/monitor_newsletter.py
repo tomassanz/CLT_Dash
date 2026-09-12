@@ -3,11 +3,17 @@ Sends a weekly subscriber count alert to tomas.sanz00@gmail.com.
 Runs every Friday before the fixtures newsletter.
 """
 
+import json
 import os
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
+from pathlib import Path
 
 from newsletter_common import FROM_EMAIL, load_subscribers
+
+# La cola de pendientes del último envío (la deja send_newsletter.py cuando se
+# agota el cupo diario). El monitor la lee para reportar si quedó algo sin salir.
+QUEUE_FILE = Path(__file__).parent / "newsletter_queue.json"
 
 TO_EMAIL = "tomas.sanz00@gmail.com"
 
@@ -24,6 +30,28 @@ SENDS_PER_SUBSCRIBER_PER_MONTH = 8.7
 # Avisos sobre el cupo mensual: amarillo al 70%, rojo al 85%.
 WARN_MONTHLY_PCT = 70
 ALERT_MONTHLY_PCT = 85
+
+# Hora del primer reintento de newsletter_drain.yml (cupo de Resend se renueva
+# a las 21:00 UY). Solo para nombrarla en el mail.
+DRAIN_TIME_UY = "21:15"
+
+
+def read_queue() -> tuple[int, float] | None:
+    """(pendientes, horas desde que se creó) de la cola, o None si no hay."""
+    if not QUEUE_FILE.exists():
+        return None
+    try:
+        q = json.loads(QUEUE_FILE.read_text(encoding="utf-8"))
+        pending = len(q.get("pending") or [])
+        if not pending:
+            return None
+        created = datetime.fromisoformat(q["created_at"])
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - created).total_seconds() / 3600
+        return pending, age
+    except Exception:
+        return None
 
 def build_html(subscribers: list[dict]) -> str:
     total = len(subscribers)
@@ -81,8 +109,40 @@ def build_html(subscribers: list[dict]) -> str:
         tandas_html = f"""
     <div style="background:#eef6ff;border-left:4px solid #2563eb;padding:12px 18px;border-radius:8px;margin-bottom:20px;">
       <p style="margin:0;color:#3A1A1A;font-size:13px;">
-        ℹ️ El envío ya no entra en un día: sale en <b>{tandas} tandas</b>. Los que quedan
-        pendientes reciben el mail esa misma noche, después de las 21:00. Es automático.
+        ℹ️ El envío ya no entra en un día: sale en <b>{tandas} tandas</b> de hasta
+        {RESEND_DAILY_LIMIT}. El cupo de Resend se renueva a las <b>21:00</b> de Uruguay,
+        así que los que quedan pendientes reciben el mail a las <b>{DRAIN_TIME_UY}</b> de
+        esa misma noche. Es automático, no hay que hacer nada.
+      </p>
+    </div>"""
+
+    # Estado de la cola: si el último envío dejó gente sin recibir, decirlo.
+    queue = read_queue()
+    if queue:
+        pending, age = queue
+        if age > 20:
+            cola_html = f"""
+    <div style="background:#fee;border-left:4px solid #dc2626;padding:12px 18px;border-radius:8px;margin-bottom:20px;">
+      <p style="margin:0;color:#dc2626;font-weight:bold;font-size:14px;">🚨 Quedaron {pending} sin recibir</p>
+      <p style="margin:6px 0 0;color:#3A1A1A;font-size:13px;">
+        El último envío dejó {pending} pendientes hace {age:.0f} horas y ya no se van a
+        mandar (el mail quedó viejo). El cupo no alcanzó ni con dos días: hay que migrar
+        de plan o de proveedor.
+      </p>
+    </div>"""
+        else:
+            cola_html = f"""
+    <div style="background:#fef3c7;border-left:4px solid #ca8a04;padding:12px 18px;border-radius:8px;margin-bottom:20px;">
+      <p style="margin:0;color:#3A1A1A;font-size:13px;">
+        ⏳ Hay <b>{pending} pendientes</b> del último envío (de hace {age:.0f}h). Salen
+        solos a las {DRAIN_TIME_UY}, cuando se renueva el cupo. No hay que hacer nada.
+      </p>
+    </div>"""
+    else:
+        cola_html = """
+    <div style="background:white;border-left:4px solid #16a34a;padding:12px 18px;border-radius:8px;margin-bottom:20px;">
+      <p style="margin:0;color:#3A1A1A;font-size:13px;">
+        ✅ Sin pendientes: el último envío llegó a todos.
       </p>
     </div>"""
 
@@ -97,7 +157,7 @@ def build_html(subscribers: list[dict]) -> str:
   <div style="height:3px;background:#D4A843;"></div>
   <div style="padding:28px 32px;">
     <p style="color:#888;font-size:12px;margin:0 0 16px;">{date_str}</p>
-    {alert_html}{tandas_html}
+    {alert_html}{tandas_html}{cola_html}
     <div style="background:white;border-radius:12px;padding:24px;text-align:center;margin-bottom:20px;">
       <div style="font-size:48px;font-weight:bold;color:#6B2D2D;">{total}</div>
       <div style="font-size:14px;color:#888;margin-top:4px;">suscriptores activos</div>

@@ -10,13 +10,18 @@ name: Newsletter — Enviar pendientes
 
 on:
   schedule:
-    # 01:30 a 07:30 UTC = 22:30 a 04:30 hora de Uruguay, del miércoles y del
-    # sábado (o sea la noche del martes y la del viernes, ya pasado el corte).
-    # Se reintenta cada hora para aguantar el jitter del scheduler de Actions.
-    - cron: "30 1-7 * * 3,6"
-    # Un intento más tarde: si a esta altura sigue habiendo pendientes, la cola
-    # ya venció y el script falla a propósito para que llegue el aviso por mail.
-    - cron: "30 12 * * 3,6"
+    # 00:15 a 07:15 UTC = 21:15 a 04:15 hora de Uruguay, del miércoles y del
+    # sábado (o sea la noche del martes y la del viernes). El primer intento cae
+    # 15 minutos después del corte de las 21:00 UY, así los que quedaron
+    # pendientes reciben el mail esa misma noche y lo antes posible.
+    # Se reintenta cada hora: el scheduler de Actions arranca tarde (el envío del
+    # 11/09 salió 3h17 después de su horario), nunca temprano, así que el margen
+    # de 15 minutos es seguro y las corridas de más no cuestan nada.
+    - cron: "15 0-7 * * 3,6"
+    # Barrido diario a las 09:15 UY. Si el envío se disparó muy tarde, la cola
+    # puede nacer después de la ventana de arriba; esto la levanta igual, y si ya
+    # venció hace fallar el workflow a propósito para que llegue el aviso.
+    - cron: "15 12 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
