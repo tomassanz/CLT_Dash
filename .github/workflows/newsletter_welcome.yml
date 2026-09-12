@@ -4,8 +4,12 @@ on:
   schedule:
     # Cada hora al minuto 40 (evita pisarse con "Update data" que corre al minuto 0).
     # Días 0,1,3,4,6 = todos menos martes y viernes: esos son los días de envío del
-    # newsletter y el cupo diario de Resend (100) queda reservado para él. A quien se
-    # anota un martes o un viernes, la bienvenida le llega al día siguiente.
+    # newsletter y el cupo diario de Resend (100) queda reservado para él.
+    #
+    # Los días de cron son UTC, así que la pausa cubre justo el día de cupo del
+    # envío y se reanuda a las 00:40 UTC = 21:40 de Uruguay, apenas renovado el
+    # cupo. O sea: a quien se anota un martes o un viernes la bienvenida le llega
+    # esa misma noche después de las 21:40, no al día siguiente.
     - cron: "40 * * * 0,1,3,4,6"
   workflow_dispatch:
     inputs:
