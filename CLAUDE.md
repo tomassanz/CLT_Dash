@@ -693,6 +693,7 @@ Flujo de cada corrida:
    - `fixtures_live.json` tiene al menos una categoría con partidos.
 7. **Detecta cambios reales** con `scraper/should_commit.py` (ver abajo).
 8. Si hay cambios: commit como `github-actions[bot]` con mensaje `chore(data): actualización automática YYYY-MM-DD` y push a `main`.
+8b. **El push reintenta 5 veces** (0s, 5s, 15s, 30s, 60s) haciendo `git pull --rebase origin main` antes de cada intento. GitHub devuelve errores transitorios cada tanto (`remote: fatal error in commit_refs`) y además hay otros workflows pusheando a main; sin reintento, una corrida entera se perdía por un hipo de 15 segundos.
 9. Dispara explícitamente `gh-pages.yml` con `gh workflow run` (el push del bot NO dispara workflows por diseño del `GITHUB_TOKEN`). **Reintenta 5 veces** (5s, 15s, 30s, 60s) porque la API de GitHub devuelve 503 cada tanto; si igual no sale, deja un warning y **no rompe el workflow** — los datos ya están pusheados y la próxima corrida lo reintenta.
 
 #### `scraper/should_commit.py` — evita commits vacíos
@@ -723,6 +724,8 @@ Vercel redespliega solo con el push a `main` (usa su propia GitHub App, no depen
 | Síntoma | Causa probable | Solución |
 |---|---|---|
 | El workflow falló en "Health check" | API de la liga caída o intermitente | Esperar unas horas y correr manual (Actions → Run workflow) |
+| Falló en "Commit & push" con `remote: fatal error in commit_refs` | Error transitorio del lado de GitHub (le pasó a la corrida 806 el 13/09/2026) | **Ya no debería pasar:** el push reintenta 5 veces con espera creciente (0/5/15/30/60s) y rebasa antes de cada intento. Si aun así falla las 5, no se pierde nada: la próxima corrida regenera los datos desde la API y los vuelve a commitear |
+| Falló el push por "non-fast-forward" o "rejected" | Otro workflow pusheó a main mientras esta corrida trabajaba (son ~15 min) | Idem: el reintento hace `git pull --rebase` antes de cada push. Los bots tocan archivos distintos (`clt.db` vs `welcomed_emails.json` vs `newsletter_queue.json`), así que el rebase no da conflicto |
 | Corrió pero no hubo commit | No hubo datos nuevos (solo cambiaron timestamps) | **Normal y esperado** — `should_commit.py` los filtra. La mayoría de las corridas no commitean nada |
 | Warning "No se pudo disparar gh-pages.yml" | La API de GitHub devolvió 503 en los 5 intentos | No hacer nada: Vercel (el sitio principal) ya se actualizó. Si Pages quedó viejo, correr `gh-pages.yml` manual desde Actions |
 | Pages no se actualizó | El step `Trigger GitHub Pages rebuild` falló | Correr manual `gh-pages.yml` desde Actions |

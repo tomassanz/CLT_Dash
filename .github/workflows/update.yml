@@ -82,7 +82,24 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add scraper/clt.db frontend/public/data
           git commit -m "chore(data): actualización automática $(date -u +'%Y-%m-%d')"
-          git push
+          # El push puede fallar por algo ajeno al código: un error transitorio del
+          # lado de GitHub (la corrida 806 del 13/09/2026 murió con "remote: fatal
+          # error in commit_refs") o una carrera con otro workflow que también
+          # pushea a main. Se reintenta con espera creciente, trayendo antes lo que
+          # main haya cambiado.
+          for delay in 0 5 15 30 60; do
+            if [ "$delay" -gt 0 ]; then
+              echo "Push falló, reintentando en ${delay}s..."
+              sleep "$delay"
+            fi
+            git pull --rebase origin main || true
+            if git push; then
+              echo "Push OK."
+              exit 0
+            fi
+          done
+          echo "::error::No se pudo pushear tras 5 intentos. Los datos de esta corrida se pierden, pero la próxima corrida los regenera desde la API y los vuelve a commitear."
+          exit 1
 
       # El push del bot no dispara workflows (por diseño del GITHUB_TOKEN), así
       # que hay que llamar a gh-pages a mano. La API de GitHub devuelve 503 cada
