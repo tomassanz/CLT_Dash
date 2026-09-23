@@ -440,6 +440,33 @@ def _stage_for_label(stats: dict[str, list[dict]], cid: str | None, standings: l
 
     return max(candidates, key=score)["stage"]
 
+def _split_stage(conn, season: int, cat_id: str | None) -> str | None:
+    """
+    Nombre de la 2ª fase según dónde terminó CLT la fase regular: las divisionales
+    grandes (14+ equipos, cantidad par) se parten al medio — la mitad de arriba
+    juega por el título y la de abajo por la permanencia. Sirve para rotular la
+    fase cuando la liga ya publicó el fixture / la tabla nueva pero el Sistema A
+    todavía no cargó la serie con su nombre ("DIVISIONAL "A" TITULO").
+    None si la categoría no tiene tabla regular de ese tipo.
+    """
+    cat = next((c for c in FIXTURE_CATEGORIES if c["id"] == cat_id), None)
+    if cat is None:
+        return None
+    label = f"T{cat['torneo']}/{cat['serie']}"
+    rows = conn.execute(
+        "SELECT institution FROM league_standings WHERE season=? AND series=? ORDER BY rank",
+        (season, label),
+    ).fetchall()
+    n = len(rows)
+    idx = next((i for i, r in enumerate(rows) if CLT_NAME in (r["institution"] or "").upper()), None)
+    if n < 14 or n % 2 or idx is None:
+        return None
+    return "Fase Título" if idx < n // 2 else "Permanencia y Descenso"
+
+def _regular_label(cat_id: str | None) -> str | None:
+    cat = next((c for c in FIXTURE_CATEGORIES if c["id"] == cat_id), None)
+    return f"T{cat['torneo']}/{cat['serie']}" if cat else None
+
 def gen_league_context(conn, exclude_ids: set[str] | None = None):
     exclude_ids = exclude_ids or set()
     # Verificar que las tablas existen (pueden no existir en DBs antiguas)
@@ -518,11 +545,16 @@ def gen_league_context(conn, exclude_ids: set[str] | None = None):
         if season_num not in stats_cache:
             stats_cache[season_num] = _series_a_stats(conn, season_num, exclude_ids)
         category = category_from_label(serie)
+        stage = _stage_for_label(stats_cache[season_num], category, standings)
+        # Tabla de una fase posterior que el Sistema A todavía no tiene con nombre:
+        # sin esto quedaría rotulada como fase regular (stage None).
+        if stage is None and serie != _regular_label(category) and len(standings) < 14:
+            stage = _split_stage(conn, season_num, category) or "2ª Fase"
 
         ctx = {
             "label":       serie,  # ej: "T2/AT"
             "category":    category,  # ej: "sub18" — None si el torneo no es conocido
-            "stage":       _stage_for_label(stats_cache[season_num], category, standings),
+            "stage":       stage,
             "standings":   standings,
             "clt_rank":    clt_rank,
             "clt_points":  clt_points,
@@ -820,6 +852,11 @@ def _fetch_category_fixtures(cat: dict, season: int, conn=None,
     # nombre de fase. Se usa para rotular los próximos que solo trae el Sistema B.
     current_stage = next((m.get("stage") for m in reversed(db_matches) if m.get("stage")), None)
 
+    # Nombre para los próximos que solo trae el Sistema B (serie nueva sin cargar
+    # todavía en la base): "Fase Título" / "Permanencia y Descenso" según dónde
+    # terminó CLT la fase regular, o "2ª Fase" si no se puede saber.
+    phase2_name = (_split_stage(conn, season, cat["id"]) if conn is not None else None) or "2ª Fase"
+
     series_codes = _series_for_category(cat, clt_series)
     extra_found = []
     for serie in series_codes:
@@ -852,7 +889,7 @@ def _fetch_category_fixtures(cat: dict, season: int, conn=None,
                 except ValueError:
                     pass
                 if is_extra:
-                    m["stage"] = current_stage or "2ª Fase"
+                    m["stage"] = current_stage or phase2_name
             key = (m["date"], _opponent_key(m["opponent"]))
             existing = merged.get(key)
             if existing is None:
@@ -906,6 +943,20 @@ def _fetch_category_fixtures(cat: dict, season: int, conn=None,
     matches.sort(key=lambda m: (m["date"], m.get("time") or ""))
     for i, m in enumerate(matches, start=1):
         m["fecha"] = i
+
+    # Los próximos de una fase nueva que solo vienen del Sistema B no traen número
+    # de fecha: se numeran dentro de su fase (1, 2, 3...) y no como continuación
+    # de la fase regular (16, 17...), que confunde. Solo si NINGÚN partido de esa
+    # fase trae número: con fechas postergadas (Sub-18 jugó la 1, 2, 5, 6 y 7)
+    # adivinar el número de las que faltan podría mostrar uno equivocado.
+    by_stage: dict[str, list[dict]] = {}
+    for m in matches:
+        if m.get("stage") and not m.get("tentative"):
+            by_stage.setdefault(m["stage"], []).append(m)
+    for stage_matches in by_stage.values():
+        if not any(m.get("round") for m in stage_matches):
+            for i, m in enumerate(stage_matches, start=1):
+                m["round"] = str(i)
 
     if has_phase2:
         stages = [m["stage"] for m in matches if m.get("stage")]
