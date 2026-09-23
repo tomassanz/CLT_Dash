@@ -37,8 +37,6 @@ function seriesTabName(s: SeriesLeagueContext, all: SeriesLeagueContext[]): stri
   return sameStage ? `${base} · ${s.label.split("/")[1] ?? s.label}` : `${base} · ${stage}`
 }
 
-// Tabla que se muestra. `note` explica un recorte hecho acá (ver currentPhaseTables).
-type DisplaySeries = SeriesLeagueContext & { note?: string }
 
 const isCltName = (name: string) => name.toUpperCase().includes("CARRASCO LAWN TENNIS")
 
@@ -50,8 +48,8 @@ const isCltName = (name: string) => name.toUpperCase().includes("CARRASCO LAWN T
 //    se muestra esa y se oculta la de la fase regular;
 //  - si la liga todavía no la publicó (se juega la fecha 1 y recién ahí aparece)
 //    pero la fase regular ya terminó, se muestra solo la mitad donde quedó CLT.
-function currentPhaseTables(list: SeriesLeagueContext[]): DisplaySeries[] {
-  const out: DisplaySeries[] = []
+function currentPhaseTables(list: SeriesLeagueContext[]): SeriesLeagueContext[] {
+  const out: SeriesLeagueContext[] = []
   for (const s of list) {
     const cat = seriesCategory(s)
     const later = list.filter(o => o !== s && o.stage && seriesCategory(o) === cat)
@@ -64,7 +62,7 @@ function currentPhaseTables(list: SeriesLeagueContext[]): DisplaySeries[] {
 // La mitad de la tabla donde está CLT, si la fase regular de una divisional
 // grande (14+ equipos, cantidad par) ya terminó. Tolera hasta un partido
 // pendiente (2 equipos con un PJ menos). Si no aplica devuelve null.
-function cltHalf(s: SeriesLeagueContext): DisplaySeries | null {
+function cltHalf(s: SeriesLeagueContext): SeriesLeagueContext | null {
   const rows = [...s.standings].sort((a, b) => a.rank - b.rank)
   const n = rows.length
   if (n < 14 || n % 2 !== 0) return null
@@ -78,9 +76,6 @@ function cltHalf(s: SeriesLeagueContext): DisplaySeries | null {
     ...s,
     standings: group,
     clt_rank: (top ? idx : idx - half) + 1,
-    note: top
-      ? `Terminó la fase regular: CLT quedó entre los ${half} de arriba y juega por el título.`
-      : `Terminó la fase regular: CLT quedó entre los ${half} de abajo y juega por la permanencia.`,
   }
 }
 
@@ -423,7 +418,7 @@ export default function ActualidadPage() {
   }
 
   const activeCat = allCategories.find(c => c.id === activeCatTab)
-const activeLeagueCtx: DisplaySeries | undefined = leagueSeries.find(s => s.label === activeLeagueTab)
+const activeLeagueCtx: SeriesLeagueContext | undefined = leagueSeries.find(s => s.label === activeLeagueTab)
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 sm:py-8 flex flex-col" style={{ minHeight: "calc(100vh - 160px)" }}>
@@ -718,11 +713,6 @@ const activeLeagueCtx: DisplaySeries | undefined = leagueSeries.find(s => s.labe
 
                 {activeLeagueCtx && (
                   <>
-                    {(activeLeagueCtx.note || activeLeagueCtx.stage) && (
-                      <p className="text-xs mb-2 px-1 leading-relaxed" style={{ color: "#6B2D2D" }}>
-                        {activeLeagueCtx.note ?? activeLeagueCtx.stage}
-                      </p>
-                    )}
 
                     <div className="rounded-xl overflow-hidden border mb-4" style={{ borderColor: "#E8DDD0" }}>
                       <StandingsTable ctx={activeLeagueCtx} />
