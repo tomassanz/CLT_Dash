@@ -657,7 +657,9 @@ def _clt_series_from_db(conn, season: int) -> dict[str, list[str]]:
     Series del Sistema B donde CLT juega esta temporada, agrupadas por torneo.
 
     El extractor ya hizo el descubrimiento: `league_standings` solo guarda una
-    serie si CLT aparece en su tabla de posiciones, y sus labels tienen la forma
+    serie si CLT aparece en su tabla de posiciones, y `league_clt_series` las que
+    tienen partidos de CLT programados pero todavía no tabla (fase que no arrancó).
+    Los labels tienen la forma
     "T{torneo}/{serie}" (ej: "T18/18-3-", "T18/18-32"). Leerlas de acá evita que
     el generador vuelva a bajar y sondear las ~180 series de config.json — eso
     hacía que la corrida del cron se pasara del timeout.
@@ -671,11 +673,16 @@ def _clt_series_from_db(conn, season: int) -> dict[str, list[str]]:
         return {}
 
     by_torneo: dict[str, list[str]] = {}
-    rows = conn.execute(
+    labels = [r["series"] for r in conn.execute(
         "SELECT DISTINCT series FROM league_standings WHERE season=?", (season,)
-    ).fetchall()
-    for r in rows:
-        label = (r["series"] or "").strip()
+    ).fetchall()]
+    # Series con fixture publicado pero sin tabla todavía (2ª fase recién creada)
+    if "league_clt_series" in tables:
+        labels += [r["label"] for r in conn.execute(
+            "SELECT label FROM league_clt_series WHERE season=?", (season,)
+        ).fetchall()]
+    for raw in labels:
+        label = (raw or "").strip()
         if not label.startswith("T") or "/" not in label:
             continue
         torneo, serie = label[1:].split("/", 1)
@@ -809,9 +816,9 @@ def _fetch_category_fixtures(cat: dict, season: int, conn=None,
     for m in db_matches:
         merged.setdefault((m["date"], _opponent_key(m["opponent"])), m)
 
-    # Fase actual según la base: la del último partido jugado con nombre de fase.
-    played_db = [m for m in db_matches if m["played"]]
-    current_stage = next((m.get("stage") for m in reversed(played_db) if m.get("stage")), None)
+    # Fase actual según la base: la del último partido (jugado o programado) con
+    # nombre de fase. Se usa para rotular los próximos que solo trae el Sistema B.
+    current_stage = next((m.get("stage") for m in reversed(db_matches) if m.get("stage")), None)
 
     series_codes = _series_for_category(cat, clt_series)
     extra_found = []

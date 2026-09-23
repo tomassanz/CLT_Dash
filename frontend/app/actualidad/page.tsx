@@ -37,8 +37,55 @@ function seriesTabName(s: SeriesLeagueContext, all: SeriesLeagueContext[]): stri
   return sameStage ? `${base} · ${s.label.split("/")[1] ?? s.label}` : `${base} · ${stage}`
 }
 
+// Tabla que se muestra. `note` explica un recorte hecho acá (ver currentPhaseTables).
+type DisplaySeries = SeriesLeagueContext & { note?: string }
+
+const isCltName = (name: string) => name.toUpperCase().includes("CARRASCO LAWN TENNIS")
+
+// Terminada la fase regular (todos contra todos), las divisionales de 16 se
+// parten en dos grupos de 8: los de arriba juegan por el título y los de abajo
+// por la permanencia. Lo que pasa en el otro grupo ya no le importa a CLT, así
+// que por categoría:
+//  - si ya hay tabla de una fase posterior con menos equipos (el grupo de CLT),
+//    se muestra esa y se oculta la de la fase regular;
+//  - si la liga todavía no la publicó (se juega la fecha 1 y recién ahí aparece)
+//    pero la fase regular ya terminó, se muestra solo la mitad donde quedó CLT.
+function currentPhaseTables(list: SeriesLeagueContext[]): DisplaySeries[] {
+  const out: DisplaySeries[] = []
+  for (const s of list) {
+    const cat = seriesCategory(s)
+    const later = list.filter(o => o !== s && o.stage && seriesCategory(o) === cat)
+    if (!s.stage && later.some(o => o.standings.length < s.standings.length)) continue
+    out.push((!s.stage && later.length === 0 && cltHalf(s)) || s)
+  }
+  return out
+}
+
+// La mitad de la tabla donde está CLT, si la fase regular de una divisional
+// grande (14+ equipos, cantidad par) ya terminó. Tolera hasta un partido
+// pendiente (2 equipos con un PJ menos). Si no aplica devuelve null.
+function cltHalf(s: SeriesLeagueContext): DisplaySeries | null {
+  const rows = [...s.standings].sort((a, b) => a.rank - b.rank)
+  const n = rows.length
+  if (n < 14 || n % 2 !== 0) return null
+  if (rows.filter(r => (r.pj ?? 0) < n - 1).length > 2) return null
+  const idx = rows.findIndex(r => isCltName(r.institution))
+  if (idx < 0) return null
+  const half = n / 2
+  const top = idx < half
+  const group = (top ? rows.slice(0, half) : rows.slice(half)).map((r, i) => ({ ...r, rank: i + 1 }))
+  return {
+    ...s,
+    standings: group,
+    clt_rank: (top ? idx : idx - half) + 1,
+    note: top
+      ? `Terminó la fase regular: CLT quedó entre los ${half} de arriba y juega por el título.`
+      : `Terminó la fase regular: CLT quedó entre los ${half} de abajo y juega por la permanencia.`,
+  }
+}
+
 // Orden de display: por categoría, y dentro de la categoría primero la fase regular.
-function sortSeries(list: SeriesLeagueContext[]): SeriesLeagueContext[] {
+function sortSeries<T extends SeriesLeagueContext>(list: T[]): T[] {
   return [...list].sort((a, b) =>
     categoryOrder(seriesCategory(a)) - categoryOrder(seriesCategory(b))
     || (a.stage ? 1 : 0) - (b.stage ? 1 : 0)
@@ -325,7 +372,7 @@ export default function ActualidadPage() {
     loadMatches().then(m => setAllMatches(m)).catch(() => {})
     loadLeagueContext().then(lc => {
       setLeagueContext(lc)
-      const sorted = sortSeries(lc[String(CURRENT_SEASON)] ?? [])
+      const sorted = sortSeries(currentPhaseTables(lc[String(CURRENT_SEASON)] ?? []))
       if (sorted.length > 0) setActiveLeagueTab(sorted[0].label)
     }).catch(() => {})
   }, [])
@@ -349,7 +396,7 @@ export default function ActualidadPage() {
     })
 
   // Tablas de liga de la temporada actual, ordenadas por categoría y fase
-  const leagueSeries = sortSeries(leagueContext[String(CURRENT_SEASON)] ?? [])
+  const leagueSeries = sortSeries(currentPhaseTables(leagueContext[String(CURRENT_SEASON)] ?? []))
 
   async function openMatchModal(m: Match) {
     const detail = await loadMatchDetail(m.id)
@@ -376,7 +423,7 @@ export default function ActualidadPage() {
   }
 
   const activeCat = allCategories.find(c => c.id === activeCatTab)
-const activeLeagueCtx: SeriesLeagueContext | undefined = leagueSeries.find(s => s.label === activeLeagueTab)
+const activeLeagueCtx: DisplaySeries | undefined = leagueSeries.find(s => s.label === activeLeagueTab)
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 sm:py-8 flex flex-col" style={{ minHeight: "calc(100vh - 160px)" }}>
@@ -671,6 +718,11 @@ const activeLeagueCtx: SeriesLeagueContext | undefined = leagueSeries.find(s => 
 
                 {activeLeagueCtx && (
                   <>
+                    {(activeLeagueCtx.note || activeLeagueCtx.stage) && (
+                      <p className="text-xs mb-2 px-1 leading-relaxed" style={{ color: "#6B2D2D" }}>
+                        {activeLeagueCtx.note ?? activeLeagueCtx.stage}
+                      </p>
+                    )}
 
                     <div className="rounded-xl overflow-hidden border mb-4" style={{ borderColor: "#E8DDD0" }}>
                       <StandingsTable ctx={activeLeagueCtx} />
