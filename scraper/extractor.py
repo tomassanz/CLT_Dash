@@ -28,6 +28,7 @@ BASE_URL        = "https://ligauniversitaria.org.uy/detallefechas/api.php"
 BASE_URL_POS    = "https://ligauniversitaria.org.uy/posiciones/api.php"
 BASE_URL_GOL    = "https://ligauniversitaria.org.uy/goleadores/api.php"
 BASE_URL_VALLA  = "https://ligauniversitaria.org.uy/valla_menos_vencida/api.php"
+BASE_URL_PROX   = "https://ligauniversitaria.org.uy/partidos/api.php"
 CONFIG_URL      = "https://ligauniversitaria.org.uy/config/config.json"
 SPORT     = "FÚTBOL"
 SPORT_API = "F"   # las APIs nuevas usan "F" en vez de "FÚTBOL"
@@ -295,6 +296,16 @@ def db_init(conn: sqlite3.Connection):
             avg_per_match REAL,
             UNIQUE(season, tournament, series, player_name, institution)
         );
+
+        -- Series del Sistema B donde CLT tiene partidos programados pero todavía
+        -- no figura en la tabla de posiciones (fase recién creada, sin fechas
+        -- jugadas). Así el generador puede mostrar los próximos partidos desde
+        -- el día en que la liga publica el fixture, sin esperar a la fecha 1.
+        CREATE TABLE IF NOT EXISTS league_clt_series (
+            season  INTEGER NOT NULL,
+            label   TEXT NOT NULL,
+            PRIMARY KEY (season, label)
+        );
     """)
     conn.commit()
 
@@ -553,8 +564,13 @@ def fetch_league_season_data(conn, season: int):
     ]
     TORNEO_IDS = range(1, 12)
 
-    def _try_combo(torneo_str: str, categoria_str: str, serie_code: str) -> bool:
-        """Prueba una combinación y guarda los datos si CLT aparece. Retorna True si encontró."""
+    def _try_combo(torneo_str: str, categoria_str: str, serie_code: str,
+                   check_upcoming: bool = True) -> bool:
+        """
+        Prueba una combinación y guarda los datos si CLT aparece. Retorna True si encontró.
+        `check_upcoming=False` en el brute-force: son 253 combos casi todos vacíos y
+        mirar el fixture de cada uno duplicaría ese barrido (~6 min más).
+        """
         common = {
             "temporada": str(season),
             "deporte":   SPORT_API,
@@ -563,15 +579,23 @@ def fetch_league_season_data(conn, season: int):
             "serie":     serie_code,
         }
 
-        pos_data = safe_list(api_get_url(BASE_URL_POS, {**common, "action": "cargarPosiciones"}))
-        if not pos_data:
-            return False
-
+        label = f"T{torneo_str}/{serie_code}"
+        pos_data = safe_list(api_get_url(BASE_URL_POS, {**common, "action": "cargarPosiciones"})) or []
         clt_in = any(TEAM in (row.get("Institucion") or "").upper() for row in pos_data)
         if not clt_in:
+            # Fase recién creada: la tabla viene vacía (o casi) hasta que se juega
+            # la fecha 1, pero el fixture ya puede estar publicado. Solo se mira
+            # el fixture en ese caso para no sumar un request por cada serie ajena.
+            barely_started = max((_int(r.get("PJ")) or 0 for r in pos_data), default=0) <= 1
+            if check_upcoming and barely_started and _clt_in_upcoming(common):
+                log.info("  [S%d] Liga %s — CLT tiene partidos programados (sin tabla todavía)",
+                         season, label)
+                conn.execute("INSERT OR IGNORE INTO league_clt_series (season, label) VALUES (?,?)",
+                             (season, label))
+                conn.commit()
+                return True
             return False
 
-        label = f"T{torneo_str}/{serie_code}"
         log.info("  [S%d] Liga %s — CLT encontrado (%d equipos)", season, label, len(pos_data))
 
         # Guardar posiciones
@@ -682,11 +706,19 @@ def fetch_league_season_data(conn, season: int):
                 if combo in tried:
                     continue
                 tried.add(combo)
-                if _try_combo(*combo):
+                if _try_combo(*combo, check_upcoming=False):
                     found_any = True
 
     if not found_any:
         log.debug("  [S%d] No se encontraron tablas de liga con CLT", season)
+
+def _clt_in_upcoming(common: dict) -> bool:
+    """True si CLT aparece en los próximos partidos (partidos/api.php) de la serie."""
+    rows = safe_list(api_get_url(BASE_URL_PROX, {**common, "action": "cargarPartidos"})) or []
+    return any(
+        TEAM in (r.get("Locatario") or "").upper() or TEAM in (r.get("Visitante") or "").upper()
+        for r in rows
+    )
 
 def get_config_combos(season: int) -> list[tuple[str, str, str]]:
     """
