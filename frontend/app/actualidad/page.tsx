@@ -54,9 +54,43 @@ function currentPhaseTables(list: SeriesLeagueContext[]): SeriesLeagueContext[] 
     const cat = seriesCategory(s)
     const later = list.filter(o => o !== s && o.stage && seriesCategory(o) === cat)
     if (!s.stage && later.some(o => o.standings.length < s.standings.length)) continue
-    out.push((!s.stage && later.length === 0 && cltHalf(s)) || s)
+    if (s.stage) {
+      const regular = list.find(o => !o.stage && seriesCategory(o) === cat)
+      out.push((regular && completeGroup(s, regular)) || s)
+      continue
+    }
+    out.push((later.length === 0 && cltHalf(s)) || s)
   }
   return out
+}
+
+const teamKey = (name: string) => name.toUpperCase().replace(/[^A-Z0-9]/g, "")
+
+// La liga publica la tabla de la 2ª fase solo con los equipos que ya jugaron en
+// ella: si un partido de la fecha 1 se posterga, esos dos equipos no aparecen
+// (le pasó a Reserva y Más 40 el 26/09/2026). Como los puntos se arrastran de la
+// fase regular, los que faltan se completan con su fila de la fase regular y se
+// reordena. Solo aplica si la tabla nueva es el grupo de CLT (la mitad de la
+// tabla regular) y arrastra puntos (PJ mayor que en la fase regular).
+function completeGroup(s: SeriesLeagueContext, regular: SeriesLeagueContext): SeriesLeagueContext | null {
+  const half = cltHalf(regular)
+  if (!half || s.standings.length >= half.standings.length) return null
+  const regularByKey = new Map(half.standings.map(r => [teamKey(r.institution), r]))
+  const present = new Set(s.standings.map(r => teamKey(r.institution)))
+  if (![...present].every(k => regularByKey.has(k))) return null
+  const carries = s.standings.every(r => (r.pj ?? 0) >= (regularByKey.get(teamKey(r.institution))!.pj ?? 0))
+  if (!carries) return null
+  const rows = [
+    ...s.standings,
+    ...half.standings.filter(r => !present.has(teamKey(r.institution))),
+  ]
+    .sort((a, b) =>
+      (b.points ?? 0) - (a.points ?? 0)
+      || ((b.gf ?? 0) - (b.gc ?? 0)) - ((a.gf ?? 0) - (a.gc ?? 0))
+      || (b.gf ?? 0) - (a.gf ?? 0))
+    .map((r, i) => ({ ...r, rank: i + 1 }))
+  const clt = rows.find(r => isCltName(r.institution))
+  return { ...s, standings: rows, clt_rank: clt?.rank ?? s.clt_rank }
 }
 
 // La mitad de la tabla donde está CLT, si la fase regular de una divisional
