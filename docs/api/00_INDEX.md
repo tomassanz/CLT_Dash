@@ -281,3 +281,4 @@ Esto causa bugs silenciosos si confundes.
 2. Corre `map_all_apis.py` para validar
 3. Abre issue/PR al repo
 
+<!-- prueba claude-remoto -->
